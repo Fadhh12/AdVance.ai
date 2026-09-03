@@ -427,3 +427,36 @@ Sesi berikutnya, urutan yang masuk akal:
    disetujui saat sesi berikutnya mulai, jangan mulai Phase 6, cek dulu ke user.
 4. Phase 7 (Quota/Billing/Analytics penuh) dan Phase 8 (testing/hardening/launch) masih
    menyusul setelah itu sesuai Task Breakdown.
+
+---
+
+## Catatan sesi (belum jadi phase sendiri) — Register stuck "Failed to fetch"
+
+User coba register manual, backend sudah jalan (`uvicorn`) tapi Postgres belum (Docker
+Desktop masih belum terpasang — installer-nya ada di root repo, belum dijalankan).
+`/auth/register` 500 karena `psycopg2.OperationalError: connection refused`, tapi
+browser cuma menampilkan `TypeError: Failed to fetch` tanpa detail apapun. Dua fix:
+
+1. **Bug nyata, bukan cuma gara-gara Docker** (`backend/app/main.py`): FastAPI/Starlette
+   punya quirk — handler yang didaftarkan untuk `Exception`/500 via
+   `@app.exception_handler` otomatis dikabel ke `ServerErrorMiddleware`, yang posisinya
+   **di luar** `CORSMiddleware` di stack. Jadi response 500 dari exception yang gak
+   ketangkep gak pernah dapat header CORS → browser nolak baca response-nya →
+   `fetch()` di frontend cuma bilang "Failed to fetch", bukan pesan error asli. Fix:
+   tangkap exception lewat middleware biasa (`CatchUnhandledErrorsMiddleware`,
+   `BaseHTTPMiddleware`) yang didaftarkan **sebelum** `CORSMiddleware` (jadi lebih ke
+   dalam di stack, di dalam wrapping CORS) supaya response error tetap lewat CORS.
+   Sudah diverifikasi logikanya benar (skrip TestClient terpisah, cek header
+   `access-control-allow-origin` muncul di response 500) — **belum diverifikasi di
+   proses uvicorn yang lagi jalan**, karena proses itu jalan di luar sandbox agent ini
+   dan gak bisa di-restart dari sini. **User perlu restart backend
+   (`Ctrl+C` lalu `uvicorn app.main:app --reload` lagi) supaya fix ini kepakai.**
+2. **Dev bypass sementara** (sesuai request user): `frontend/.env.local` sekarang punya
+   `SKIP_AUTH=true` (didokumentasikan di `.env.example`, default off). Kalau di-set,
+   `(workspace)/layout.tsx` skip cek session & redirect ke `/login` — halaman workspace
+   bisa diakses tanpa login. **Bukan solusi penuh**: hampir semua fitur produk (Media
+   Library, Generate Studio, Editor, Publish) tetap butuh Postgres buat data beneran,
+   jadi tanpa Docker jalan, halaman-halaman itu cuma nunjukin empty state (gak crash,
+   tapi juga gak ada data). Perlu restart `npm run dev` biar env var baru kebaca.
+   **Hapus/comment `SKIP_AUTH` dari `.env.local` begitu Docker + Postgres beneran
+   jalan** — jangan biarkan nempel, itu literally mematikan auth check.
