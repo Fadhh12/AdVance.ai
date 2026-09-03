@@ -6,16 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { API_BASE_URL, readApiError } from "@/lib/api";
 import { formatBytes, formatDateTime } from "@/lib/format";
-
-type MediaAsset = {
-  id: string;
-  type: "photo" | "video_raw";
-  original_filename: string;
-  content_type: string;
-  size_bytes: number;
-  uploaded_at: string;
-  url: string;
-};
+import type { MediaAsset } from "@/lib/types";
 
 const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,video/mp4,video/quicktime";
 

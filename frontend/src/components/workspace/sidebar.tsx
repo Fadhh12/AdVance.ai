@@ -5,7 +5,7 @@ import Link from "next/link";
 const SECTIONS: Array<{ label: string; href: string; available: boolean }> = [
   { label: "Dashboard", href: "/dashboard", available: true },
   { label: "Media Library", href: "/media", available: true },
-  { label: "Generate Studio", href: "#", available: false },
+  { label: "Generate Studio", href: "/generate", available: true },
   { label: "Editor", href: "#", available: false },
   { label: "Publish", href: "#", available: false },
   { label: "Content Calendar", href: "#", available: false },
