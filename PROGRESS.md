@@ -208,11 +208,78 @@ bersamaan dengan `.env`/`.env.local` terisi.
 Sama seperti Phase 0/1 — Docker Desktop, ffmpeg, `PIP_TARGET` — belum ada yang
 berubah statusnya, jadi ini masih daftar yang sama (lihat Phase 0 di atas).
 
+### Untuk sesi berikutnya (sudah dilanjut — lihat Phase 3 di bawah)
+
+---
+
+## Phase 3 — AI Generation Integration — Status: selesai
+
+### Dibangun
+- **Backend**: `MockVideoProvider` (`app/services/ai_providers/mock.py`) — provider
+  default selama provider asli belum dipilih (CLAUDE.md); **tidak** menghasilkan video
+  sungguhan, cuma echo `source_image_url` balik sebagai `result_url` supaya seluruh
+  pipeline job (queued→processing→success/failed) bisa dites end-to-end tanpa API key.
+  Ada test hook: `prompt` mengandung `"trigger-failure"` → provider sengaja gagal, buat
+  nguji jalur error. `factory.py` (`get_video_provider()`) baca `AI_VIDEO_PROVIDER` dari
+  `.env`, provider baru tinggal ditambah di sini. `TransientProviderError` dipisah dari
+  kegagalan permanen (SRS §2.3: hanya error transient yang di-retry).
+  Model `AIJob` + migration `61abd86fc8b2`. `generate_video_task` (Celery, retry max 3x
+  dengan backoff, cuma untuk `TransientProviderError`) — buka session DB sendiri lewat
+  `models_base.SessionLocal()` (bukan import langsung) supaya bisa di-patch saat test.
+  `POST /ai/generate-video` (cek + potong kuota SEBELUM enqueue — SRS §2.2, 402 kalau
+  habis), `GET /ai/jobs/{id}`. Interface `SpeechToTextProvider` dan `VoiceoverProvider`
+  ditambah (`app/services/ai_providers/stt.py`, `voiceover.py`) — **stub kontrak saja**,
+  belum disambung ke endpoint manapun (provider belum final, dan pemakaiannya baru
+  masuk akal begitu UI caption/musik Phase 4 ada).
+- **Frontend**: `TallyDot` (`components/ui/tally-dot.tsx`) dan `TimelinePipeline`
+  (`components/workspace/timeline-pipeline.tsx`) — elemen visual pertama yang benar-benar
+  mengikuti motif "timeline pipeline"/"tally light" di DESIGN_SYSTEM §5.1-5.2 (bukan
+  badge rounded/step 01-02-03). Halaman `/generate` (Generate Studio): pilih foto dari
+  Media Library, isi gaya referensi opsional, trigger generate, polling status job,
+  notifikasi in-app inline saat sukses/gagal (bukan toast global — belum ada sistem
+  notifikasi terpusat di app ini). Sidebar & dashboard diupdate, "Generate Studio" aktif.
+
+### Keputusan teknis
+- **Celery `task_always_eager=True` di test session** (`tests/conftest.py`) — karena
+  Redis belum ada (Docker pending), `.delay()` di test dijalankan sinkron di proses yang
+  sama alih-alih butuh broker asli. Konsekuensinya: task butuh DB session yang sama
+  dengan request test, jadi `models_base.SessionLocal` di-patch sementara ke session
+  factory test juga. Endpoint `POST /ai/generate-video` melakukan `db.refresh(job)`
+  setelah `.delay()` supaya response selalu merefleksikan state DB terbaru — no-op di
+  production (worker asli belum sempat proses), tapi perlu di mode eager test.
+  **Belum diverifikasi** dengan Celery worker + Redis sungguhan.
+  - Timeline pipeline **belum** jadi header persisten workspace-wide — ditaruh khusus di
+  halaman Generate Studio, terikat ke job aktif. Alasan: Upload/Edit/Publish di luar
+  konteks generate belum punya state nyata untuk direfleksikan sampai `content_projects`
+  (Phase 4) ada — motif ini "naik level" jadi header per-project begitu itu dibangun.
+- Mode konten ("Iklan Produk"/"Affiliate" dari PRD flow) **sengaja tidak** ada di
+  Generate Studio — field itu milik `content_projects` (Phase 4), dan checklist Task
+  Breakdown Phase 3 sendiri tidak menyebutkannya, jadi tidak ditambahkan sekarang untuk
+  hindari field yang belum ada tempat penyimpanannya di backend.
+
+### Cara jalanin / verifikasi
+```bash
+cd backend && .venv\Scripts\activate
+pytest -q        # 17/17 pass (Celery eager mode, moto S3 mock)
+ruff check .      # clean
+
+cd frontend
+npm run build     # clean
+npm run lint      # clean
+```
+Alur generate manual end-to-end via browser **belum dites** — sama seperti Phase 0-2,
+butuh Postgres+Redis (`docker compose up -d`, masih pending Docker Desktop). Tanpa Redis,
+job dari UI akan tersangkut di status "queued" selamanya (perilaku yang diharapkan
+selama tidak ada worker asli yang jalan, bukan bug).
+
+### Item follow-up / aksi manual user
+Sama seperti Phase 0-2 — Docker Desktop, ffmpeg, `PIP_TARGET` — masih daftar yang sama.
+
 ### Untuk sesi berikutnya
-Lanjut ke **Phase 3 — AI Generation Integration**: interface `VideoGenerationProvider`
-sudah ada (`app/services/ai_providers/base.py`, dari Phase 0) — tinggal tambah
-`MockVideoProvider` konkret, model `ai_jobs` + migration, task Celery
-`generate_video_task`, endpoint `POST /ai/generate-video` + `GET /ai/jobs/{id}`, UI
-Generate Studio dengan komponen **timeline pipeline** (Upload→Generate→Edit→Publish)
-dan **tally light** status dot (DESIGN_SYSTEM §5.1-5.2) — ini elemen visual pertama
-yang belum ada di frontend sama sekali sampai sejauh ini.
+Lanjut ke **Phase 4 — Editor Ringan**: model `content_projects` + migration (termasuk
+field `mode`: product_ad/affiliate — ini pertama kalinya field itu punya rumah di
+backend), `PATCH /projects/{id}` untuk simpan instruksi edit (trim range, urutan klip,
+caption, pilihan musik), worker ffmpeg (dibungkus error jelas kalau ffmpeg belum
+terpasang), UI Editor (preview, trim/reorder sederhana, edit caption, pilih musik, simpan
+draft). Di titik ini juga masuk akal mulai sambungkan `SpeechToTextProvider` stub dari
+Phase 3 ke fitur auto-caption di editor.
