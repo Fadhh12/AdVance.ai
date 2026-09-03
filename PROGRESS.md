@@ -275,11 +275,77 @@ selama tidak ada worker asli yang jalan, bukan bug).
 ### Item follow-up / aksi manual user
 Sama seperti Phase 0-2 — Docker Desktop, ffmpeg, `PIP_TARGET` — masih daftar yang sama.
 
+### Untuk sesi berikutnya (sudah dilanjut — lihat Phase 4 di bawah)
+
+---
+
+## Phase 4 — Editor Ringan — Status: selesai
+
+### Dibangun
+- **Backend**: model `ContentProject` + migration `470511c8fd3d`
+  (`app/models/content_project.py`). `status` tetap terbatas ke nilai SDD
+  (`draft/ready/scheduled/published`); state render ffmpeg ditaruh di kolom terpisah
+  `render_status`/`render_error_message` (bukan numpuk ke `status`). `source_job_id`
+  nunjuk ke **satu** baris `ai_jobs` — belum ada "reorder klip" karena memang belum ada
+  data multi-klip untuk di-reorder (lihat keputusan teknis).
+  `app/services/video_render.py`: wrapper `ffmpeg` (subprocess), lempar
+  `FFmpegNotAvailableError` yang actionable kalau binary tidak ada di PATH — **memang
+  belum terpasang** di mesin ini sekarang.
+  `render_project_task` (Celery): download video sumber, trim, upload hasil ke storage.
+  Endpoint: `POST /projects` (dari job generate yang sukses), `GET /projects`,
+  `GET /projects/{id}`, `PATCH /projects/{id}` (caption/music_track/trim),
+  `POST /projects/{id}/render`.
+- **Frontend**: Generate Studio — setelah job sukses, muncul form kecil (judul + mode)
+  buat langsung lanjut ke editor. `/editor` (index, list proyek + tally-dot status
+  render). `/editor/[projectId]`: trim (start/end detik), caption, pilih musik (daftar
+  stub, belum ada katalog audio asli), simpan draft (PATCH), render (POST render +
+  polling). Preview pakai elemen `<video>` asli dengan fallback `onError` yang jujur
+  ("provider AI masih mock, hasil belum berupa video sungguhan") — bukan player rusak
+  yang dibiarkan begitu saja.
+
+### Keputusan teknis
+- **Tidak ada fitur "reorder klip"** meski disebut di Task Breakdown ("trim/reorder klip
+  sederhana") — sengaja diskip karena `content_projects` cuma nunjuk ke SATU AI job
+  (satu video), jadi tidak ada beberapa klip nyata untuk di-reorder. Membuat UI reorder
+  tanpa data multi-klip di baliknya berarti fitur palsu. Ini beda dari keputusan-
+  keputusan sebelumnya karena bukan cuma "belum diverifikasi", tapi **sengaja tidak
+  dibangun** — kalau nanti generation menghasilkan beberapa klip per project, ini masuk
+  akal ditambahkan.
+- Field `mode` (product_ad/affiliate) akhirnya punya rumah di sini (bukan di
+  `ai_jobs`/Generate Studio sesuai keputusan Phase 3) — diminta saat user klik "Lanjut
+  ke Editor" dari Generate Studio, pas logikanya karena baru di titik itu user
+  berkomitmen ke framing iklan-produk vs affiliate.
+- Musik masih murni metadata (nama track tersimpan di `music_track`) — **belum**
+  di-mixing beneran ke video via ffmpeg, karena belum ada katalog audio asli untuk
+  dipakai. Caption juga belum di-burn-in ke video — itu lebih masuk akal jadi bagian
+  Phase 5 (export per-platform), bukan di sini.
+
+### Cara jalanin / verifikasi
+```bash
+cd backend && .venv\Scripts\activate
+pytest -q        # 24/24 pass — termasuk 1 test render yang genuinely gagal karena
+                  # ffmpeg belum terpasang (dipaksa lewat monkeypatch biar deterministik
+                  # di semua environment, bukan cuma kebetulan mesin ini)
+ruff check .      # clean
+
+cd frontend
+npm run build     # clean
+npm run lint      # clean
+```
+Render manual end-to-end via browser **belum bisa** — butuh ffmpeg **dan** Postgres+Redis
+(Docker) terpasang. Tanpa ffmpeg, tombol "Render video" akan selalu balik
+`render_status: failed` dengan pesan actionable — ini perilaku yang benar, bukan bug.
+
+### Item follow-up / aksi manual user
+Sama seperti Phase 0-3 — Docker Desktop, ffmpeg, `PIP_TARGET` — masih daftar yang sama.
+Render video baru bisa dicoba beneran setelah ffmpeg terpasang.
+
 ### Untuk sesi berikutnya
-Lanjut ke **Phase 4 — Editor Ringan**: model `content_projects` + migration (termasuk
-field `mode`: product_ad/affiliate — ini pertama kalinya field itu punya rumah di
-backend), `PATCH /projects/{id}` untuk simpan instruksi edit (trim range, urutan klip,
-caption, pilihan musik), worker ffmpeg (dibungkus error jelas kalau ffmpeg belum
-terpasang), UI Editor (preview, trim/reorder sederhana, edit caption, pilih musik, simpan
-draft). Di titik ini juga masuk akal mulai sambungkan `SpeechToTextProvider` stub dari
-Phase 3 ke fitur auto-caption di editor.
+Lanjut ke **Phase 5 — Publish Manual Assist**: model `posts` + migration (status
+`manual_ready`/`manual_uploaded`, FR-13/FR-14), service export per-platform (crop rasio
+9:16 + validasi durasi IG/TikTok/YouTube via ffmpeg — pending sama seperti render Phase
+4, dan validator limit karakter caption per platform), endpoint export bundle + "share to
+phone" (QR code), UI Publish/Schedule (3 frame preview 9:16 berjajar, download, QR share)
+dan Content Calendar. Ini phase terakhir yang bisa dikerjakan penuh tanpa nunggu approval
+developer app Meta/TikTok/YouTube — setelah ini, Phase 6 (auto-publish) diblokir sampai
+approval turun.
