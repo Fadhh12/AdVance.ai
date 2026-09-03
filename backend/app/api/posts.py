@@ -23,10 +23,25 @@ from app.services.storage import generate_presigned_url
 router = APIRouter()
 
 
+@router.get("", response_model=list[PostOut])
+def list_all_posts(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Flat list across every project — backs the Content Calendar."""
+    rows = db.execute(
+        select(Post, ContentProject)
+        .join(ContentProject, Post.project_id == ContentProject.id)
+        .where(ContentProject.user_id == current_user.id)
+        .order_by(Post.created_at.desc())
+    ).all()
+    return [post_to_out(post, project) for post, project in rows]
+
+
 def post_to_out(post: Post, project: ContentProject | None = None) -> PostOut:
     return PostOut(
         id=post.id,
         project_id=post.project_id,
+        project_title=project.title if project else None,
         platform=post.platform,
         export_status=post.export_status,
         export_error_message=post.export_error_message,

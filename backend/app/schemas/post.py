@@ -12,6 +12,7 @@ class PostOut(BaseModel):
 
     id: uuid.UUID
     project_id: uuid.UUID
+    project_title: str | None = None
     platform: str
     export_status: str | None
     export_error_message: str | None

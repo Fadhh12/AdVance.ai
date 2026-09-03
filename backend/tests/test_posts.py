@@ -143,6 +143,23 @@ def test_share_qr_returns_png(client, s3_bucket, monkeypatch):
     assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_list_all_posts_backs_content_calendar(client, s3_bucket, monkeypatch):
+    headers_a = _auth_headers(client, email="calendar-a@example.com")
+    headers_b = _auth_headers(client, email="calendar-b@example.com")
+    project = _rendered_project(client, headers_a, monkeypatch)
+    monkeypatch.setattr(
+        tasks_module, "export_for_platform", lambda *a, **kw: b"fake-export-bytes"
+    )
+    client.post(f"/projects/{project['id']}/posts", headers=headers_a)
+
+    own_posts = client.get("/posts", headers=headers_a).json()
+    assert len(own_posts) == 3
+    assert all(p["project_title"] == "Sepatu lari" for p in own_posts)
+
+    other_posts = client.get("/posts", headers=headers_b).json()
+    assert other_posts == []
+
+
 def test_posts_require_ownership(client, s3_bucket, monkeypatch):
     headers_a = _auth_headers(client, email="owner2@example.com")
     headers_b = _auth_headers(client, email="other2@example.com")
