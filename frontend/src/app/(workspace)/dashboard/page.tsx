@@ -9,7 +9,11 @@ export default function DashboardPage() {
         <Link href="/media" className="text-rec hover:underline">
           Upload foto produk pertamamu
         </Link>{" "}
-        untuk mulai. Generate Studio (foto → video AI) menyusul di Phase 3.
+        lalu buka{" "}
+        <Link href="/generate" className="text-rec hover:underline">
+          Generate Studio
+        </Link>{" "}
+        untuk mulai bikin video.
       </p>
     </div>
   );
