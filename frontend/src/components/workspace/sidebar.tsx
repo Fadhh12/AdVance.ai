@@ -6,7 +6,7 @@ const SECTIONS: Array<{ label: string; href: string; available: boolean }> = [
   { label: "Dashboard", href: "/dashboard", available: true },
   { label: "Media Library", href: "/media", available: true },
   { label: "Generate Studio", href: "/generate", available: true },
-  { label: "Editor", href: "#", available: false },
+  { label: "Editor", href: "/editor", available: true },
   { label: "Publish", href: "#", available: false },
   { label: "Content Calendar", href: "#", available: false },
   { label: "Connected Accounts", href: "#", available: false },

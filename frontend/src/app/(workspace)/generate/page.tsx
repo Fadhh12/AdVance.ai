@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import type { TallyStatus } from "@/components/ui/tally-dot";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { TimelinePipeline, type PipelineStage } from "@/components/workspace/timeline-pipeline";
 import { API_BASE_URL, readApiError } from "@/lib/api";
-import type { AIJob, MediaAsset } from "@/lib/types";
+import type { AIJob, MediaAsset, ProjectMode } from "@/lib/types";
 
 const POLL_INTERVAL_MS = 2500;
 
@@ -20,9 +21,15 @@ function stageStatusForJob(job: AIJob | null): TallyStatus {
   return "processing";
 }
 
+const MODES: Array<{ value: ProjectMode; label: string }> = [
+  { value: "product_ad", label: "Iklan Produk" },
+  { value: "affiliate", label: "Affiliate" },
+];
+
 export default function GenerateStudioPage() {
   const { data: session } = useSession();
   const accessToken = session?.accessToken;
+  const router = useRouter();
 
   const [photos, setPhotos] = useState<MediaAsset[] | null>(null);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
@@ -30,6 +37,11 @@ export default function GenerateStudioPage() {
   const [job, setJob] = useState<AIJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [projectTitle, setProjectTitle] = useState("");
+  const [projectMode, setProjectMode] = useState<ProjectMode>("product_ad");
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [projectError, setProjectError] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -86,6 +98,33 @@ export default function GenerateStudioPage() {
       return;
     }
     setJob(await response.json());
+  }
+
+  async function handleCreateProject() {
+    if (!accessToken || !job || job.status !== "success" || !projectTitle.trim()) return;
+    setProjectError(null);
+    setIsCreatingProject(true);
+
+    const response = await fetch(`${API_BASE_URL}/projects`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        title: projectTitle.trim(),
+        mode: projectMode,
+        source_job_id: job.id,
+      }),
+    });
+
+    setIsCreatingProject(false);
+    if (!response.ok) {
+      setProjectError(await readApiError(response));
+      return;
+    }
+    const project = await response.json();
+    router.push(`/editor/${project.id}`);
   }
 
   const stages: PipelineStage[] = [
@@ -183,9 +222,40 @@ export default function GenerateStudioPage() {
       </Button>
 
       {job?.status === "success" && (
-        <p className="rounded-md border border-signal/40 bg-signal/10 px-3 py-2 text-sm text-signal">
-          Video berhasil dibuat.
-        </p>
+        <section className="flex max-w-sm flex-col gap-3 rounded-md border border-signal/40 bg-signal/10 p-4">
+          <p className="text-sm text-signal">Video berhasil dibuat. Lanjut ke editor?</p>
+          <TextField
+            id="project-title"
+            label="Judul proyek"
+            placeholder="Contoh: Sepatu lari — konten Q3"
+            value={projectTitle}
+            onChange={(e) => setProjectTitle(e.target.value)}
+          />
+          <fieldset className="flex flex-col gap-1.5 text-sm">
+            <legend className="text-ink-muted">Mode</legend>
+            <div className="flex gap-4">
+              {MODES.map((option) => (
+                <label key={option.value} className="flex items-center gap-1.5 text-ink">
+                  <input
+                    type="radio"
+                    name="mode"
+                    checked={projectMode === option.value}
+                    onChange={() => setProjectMode(option.value)}
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          {projectError && <p className="text-sm text-alert">{projectError}</p>}
+          <Button
+            onClick={handleCreateProject}
+            disabled={!projectTitle.trim() || isCreatingProject}
+            className="w-fit"
+          >
+            {isCreatingProject ? "Membuat…" : "Lanjut ke Editor"}
+          </Button>
+        </section>
       )}
       {job?.status === "failed" && (
         <p className="rounded-md border border-alert/40 bg-alert/10 px-3 py-2 text-sm text-alert">
