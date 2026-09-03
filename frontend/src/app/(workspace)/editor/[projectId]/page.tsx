@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -234,13 +235,18 @@ export default function EditorPage() {
         </p>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex items-center gap-3">
         <Button variant="ghost" onClick={handleSaveDraft} disabled={isSaving}>
           {isSaving ? "Menyimpan…" : "Simpan draft"}
         </Button>
         <Button onClick={handleRender} disabled={isRendering}>
           {isRendering ? "Merender…" : "Render video"}
         </Button>
+        {project.render_status === "success" && (
+          <Link href={`/publish/${project.id}`} className="text-sm text-rec hover:underline">
+            Lanjut ke Publish
+          </Link>
+        )}
       </div>
     </div>
   );

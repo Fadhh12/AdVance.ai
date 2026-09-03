@@ -21,6 +21,22 @@ export type AIJob = {
 
 export type ProjectMode = "product_ad" | "affiliate";
 
+export type Platform = "instagram" | "tiktok" | "youtube";
+
+export type Post = {
+  id: string;
+  project_id: string;
+  project_title: string | null;
+  platform: Platform;
+  export_status: "queued" | "processing" | "success" | "failed" | null;
+  export_error_message: string | null;
+  caption: string | null;
+  youtube_title: string | null;
+  video_url: string | null;
+  status: "manual_ready" | "manual_uploaded" | null;
+  created_at: string;
+};
+
 export type ContentProject = {
   id: string;
   title: string;
