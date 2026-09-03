@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — see /DESIGN_SYSTEM.md. Dark "video-editing workspace" palette by
+ * default; --color-paper is the one light background reserved for marketing pages.
+ * Do NOT introduce ad-hoc colors outside this token set.
+ */
+:root {
+  --color-canvas: #12131a; /* main workspace background */
+  --color-panel: #1b1d28; /* sidebar / panel / card */
+  --color-panel-raised: #242637; /* modal / active dropdown */
+
+  --color-rec: #e8a33d; /* tally light amber — primary CTA, "processing/live" */
+  --color-signal: #4fbfae; /* teal — success / published */
+  --color-alert: #e2574c; /* brick red — failed */
+
+  --color-ink: #edeef3; /* primary text on dark */
+  --color-ink-muted: #8a8d9c; /* secondary text, labels, timestamps */
+
+  --color-paper: #f7f6f2; /* light bg, marketing pages only */
+}
+
+@theme inline {
+  --color-canvas: var(--color-canvas);
+  --color-panel: var(--color-panel);
+  --color-panel-raised: var(--color-panel-raised);
+  --color-rec: var(--color-rec);
+  --color-signal: var(--color-signal);
+  --color-alert: var(--color-alert);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-paper: var(--color-paper);
+
+  --font-display: var(--font-space-grotesk);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
