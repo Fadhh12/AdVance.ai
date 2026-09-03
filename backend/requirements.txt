@@ -1,0 +1,42 @@
+# adVance.AI backend — pinned to broad, stable ranges (Python 3.11).
+# Grouped by SDD §3.1 layer. Add new deps in the right group, keep it sorted.
+
+# --- Web framework ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# --- Config / validation ---
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+
+# --- Database (SDD §3.3) ---
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg2-binary==2.9.10
+
+# --- Auth (FR-01, SDD §3.6 — encrypted tokens) ---
+passlib[bcrypt]==1.7.4
+pyjwt==2.10.1
+authlib==1.4.0
+cryptography==44.0.0
+
+# --- Job queue (SDD §3.1 — Celery + Redis) ---
+celery==5.4.0
+redis==5.2.1
+
+# --- Object storage (S3-compatible: MinIO local / R2 / S3 prod) ---
+boto3==1.35.90
+
+# --- AI provider / social publisher HTTP clients (wrapped behind services/) ---
+httpx==0.28.1
+
+# --- Manual Assist exports (Phase 5): caption QR share, video processing ---
+qrcode[pil]==8.0
+ffmpeg-python==0.2.0
+
+# --- Dev / test / lint ---
+pytest==8.3.4
+pytest-asyncio==0.25.0
+ruff==0.8.4
