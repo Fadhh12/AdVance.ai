@@ -4,7 +4,7 @@ import Link from "next/link";
 // Urutan mengikuti alur produk (Task Breakdown Phase 1-7), bukan alfabetis.
 const SECTIONS: Array<{ label: string; href: string; available: boolean }> = [
   { label: "Dashboard", href: "/dashboard", available: true },
-  { label: "Media Library", href: "#", available: false },
+  { label: "Media Library", href: "/media", available: true },
   { label: "Generate Studio", href: "#", available: false },
   { label: "Editor", href: "#", available: false },
   { label: "Publish", href: "#", available: false },
