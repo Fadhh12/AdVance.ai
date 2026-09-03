@@ -4,13 +4,14 @@ that wires them into the app.
 """
 from fastapi import APIRouter
 
-from app.api import ai, auth, health, media
+from app.api import ai, auth, health, media, projects
 
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(media.router, prefix="/media", tags=["media"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
+api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 # Phase 3: api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 # Phase 4: api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 # Phase 5: api_router.include_router(posts.router, prefix="/posts", tags=["posts"])
