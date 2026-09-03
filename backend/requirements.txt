@@ -43,4 +43,5 @@ ffmpeg-python==0.2.0
 # --- Dev / test / lint ---
 pytest==8.3.4
 pytest-asyncio==0.25.0
+moto[s3]==5.0.24
 ruff==0.8.4
