@@ -85,7 +85,79 @@ npm run dev   # http://localhost:3000
       `docs/research/ai-providers-comparison.md`, isi keputusan sebelum Phase 3 lanjut
       ke implementasi konkret (sekarang masih mock).
 
+### Untuk sesi berikutnya (sudah dilanjut — lihat Phase 1 di bawah)
+
+---
+
+## Phase 1 — Auth & Core Infra — Status: selesai
+
+### Dibangun
+- **Backend auth** (FR-01): model `User` + `Plan` (`app/models/`), migrasi Alembic
+  pertama (`856f311546c8_create_plans_and_users_tables.py`, seed 1 plan default
+  "Free" — 5 quota AI generation, 1 akun sosmed). `app/core/security.py` (hash
+  password bcrypt, JWT issue/verify), `app/api/auth.py`:
+  `POST /auth/register`, `POST /auth/login`, `POST /auth/oauth/google`,
+  `GET /auth/me`. Google id_token diverifikasi lewat endpoint `tokeninfo` Google
+  (`app/services/google_oauth.py`) — cukup untuk skala MVP, upgrade ke verifikasi
+  JWKS lokal kalau traffic login naik.
+- **Celery skeleton**: `app/workers/celery_app.py` (instance Celery ke Redis dari
+  settings) + `app/workers/tasks.py` (task `ping` no-op untuk tes wiring nanti).
+- **Frontend auth**: NextAuth v4 (`next-auth@4.24.15` — dipilih stabil, v5 masih
+  beta di registry). `src/lib/auth-options.ts`: Credentials provider manggil
+  backend `/auth/login`, Google provider forward `id_token` ke backend
+  `/auth/oauth/google` — backend tetap source of truth akun, NextAuth cuma layer
+  session/cookie. JWT backend disimpan di `session.accessToken` (lihat
+  `src/types/next-auth.d.ts` untuk type augmentation-nya).
+- **Halaman**: `/login`, `/register` (form panel gelap, CTA warna `--accent-rec`,
+  bukan kartu rounded generik). Route group `(workspace)` — `layout.tsx` cek
+  session server-side (redirect ke `/login` kalau belum login), `Sidebar` dengan
+  section yang belum dibangun ditandai "Segera" (bukan link mati tanpa
+  penjelasan), `/dashboard` placeholder empty-state jujur (belum ada Media
+  Library/Generate Studio — itu Phase 2-3).
+
+### Keputusan teknis
+- **next-auth v4** (bukan v5/Auth.js beta) — v5 masih beta di npm registry saat
+  dicek, v4.24.15 stabil dan sudah declare peer support `next ^16`.
+  - **Verifikasi Google id_token via endpoint `tokeninfo`** (bukan library JWKS
+  terpisah) — cukup untuk volume MVP, hemat dependency; didokumentasikan di kode
+  supaya upgrade path jelas kalau perlu.
+- **bcrypt dipin ke `4.0.1`** — passlib 1.7.4 (masih versi paling stabil untuk
+  hashing) salah deteksi backend di bcrypt ≥4.1 (`AttributeError` saat
+  `detect_wrap_bug`), issue dikenal di ekosistem passlib/bcrypt.
+- Test backend jalan pakai **SQLite in-memory** (dependency override `get_db`) —
+  bukan berarti migrasi Postgres sudah tervalidasi, cuma logika endpoint yang
+  tervalidasi. Ini tetap **pending**: `alembic upgrade head` ke Postgres asli
+  belum pernah dijalankan (blocker sama seperti Phase 0: Docker belum
+  terpasang).
+
+### Cara jalanin / verifikasi
+```bash
+# Backend — 6/6 test pass (SQLite), ruff clean
+cd backend && .venv\Scripts\activate
+pytest -q
+ruff check .
+# BELUM dites: alembic upgrade head (butuh Postgres via docker compose up -d)
+
+# Frontend — build + lint clean
+cd frontend
+npm run build
+npm run lint
+```
+Untuk coba alur login manual end-to-end: butuh Postgres jalan (Docker) +
+`backend/.env` terisi + `frontend/.env.local` terisi (`NEXTAUTH_SECRET` bebas
+random, `GOOGLE_OAUTH_CLIENT_ID/SECRET` boleh kosong — tombol Google saja yang
+belum berfungsi).
+
+### Item follow-up / aksi manual user
+- Sama seperti Phase 0 (Docker Desktop, ffmpeg, bersihkan `PIP_TARGET`) — **masih
+  belum dilakukan**, jadi migrasi Postgres & test login manual end-to-end masih
+  pending sampai itu selesai.
+- [ ] Isi `GOOGLE_OAUTH_CLIENT_ID`/`SECRET` (backend `.env` **dan** frontend
+      `.env.local`) begitu Google Cloud OAuth consent screen dibuat (lihat
+      `docs/research/developer-app-registration.md` §3) — tanpa ini tombol
+      "Masuk dengan Google" tidak akan berfungsi.
+
 ### Untuk sesi berikutnya
-Lanjut ke **Phase 1 — Auth & Core Infra** (lihat Task Breakdown §5 di
-`adVance-AI-Spesifikasi-Proyek.md`): model User/Plan, register/login JWT, Google OAuth
-wiring, Celery+Redis skeleton, halaman login/register frontend.
+Lanjut ke **Phase 2 — Media & Upload**: model `media_assets`, endpoint upload ke
+MinIO/S3 (`boto3`, signed URL, validasi tipe/ukuran server-side), UI Media Library
+(list + thumbnail kiri, bukan grid kartu — DESIGN_SYSTEM §5.3).
