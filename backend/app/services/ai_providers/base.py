@@ -11,6 +11,15 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 
+class TransientProviderError(Exception):
+    """Raise this (not a bare Exception) for retryable failures — network blip, provider
+    rate limit, timeout. The Celery task auto-retries up to 3x with backoff on this
+    (SRS §2.3). Anything else raised is treated as a bug, not a retryable condition.
+    A *non*-retryable provider failure (bad input, content policy, etc.) is not an
+    exception at all — return `VideoGenerationResult(success=False, error_message=...)`.
+    """
+
+
 @dataclass
 class VideoGenerationResult:
     success: bool
@@ -29,7 +38,8 @@ class VideoGenerationProvider(ABC):
         self, source_image_url: str, prompt: str | None = None
     ) -> VideoGenerationResult:
         """Kick off (or synchronously perform, if the worker handles polling) image-to-video
-        generation. Raises only for programmer error; provider/network failures should come
-        back as `VideoGenerationResult(success=False, error_message=...)`.
+        generation. Raise `TransientProviderError` for retryable failures; a permanent
+        failure (bad input, content policy, ...) comes back as
+        `VideoGenerationResult(success=False, error_message=...)` instead.
         """
         raise NotImplementedError

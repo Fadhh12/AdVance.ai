@@ -8,9 +8,16 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401 — registers all tables on Base.metadata
+import app.models.base as models_base
 from app.main import app
 from app.models.base import Base, get_db
 from app.models.plan import Plan
+from app.workers.celery_app import celery_app
+
+# No Redis in this environment yet (see PROGRESS.md) — eager mode runs `.delay()`
+# synchronously in-process instead of needing a real broker, so the task code path
+# still gets exercised for real by the test suite.
+celery_app.conf.update(task_always_eager=True, task_eager_propagates=True)
 
 
 @pytest.fixture()
@@ -38,9 +45,17 @@ def client():
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
+
+    # Celery tasks open their own session via `models_base.SessionLocal()` (not the
+    # FastAPI dependency) — point that at the same test engine too, so a task run
+    # eagerly inside a request sees the request's own data.
+    original_session_local = models_base.SessionLocal
+    models_base.SessionLocal = TestingSessionLocal
+
     from fastapi.testclient import TestClient
 
     with TestClient(app) as test_client:
         yield test_client
 
     app.dependency_overrides.clear()
+    models_base.SessionLocal = original_session_local
