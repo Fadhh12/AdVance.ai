@@ -340,12 +340,90 @@ Render manual end-to-end via browser **belum bisa** — butuh ffmpeg **dan** Pos
 Sama seperti Phase 0-3 — Docker Desktop, ffmpeg, `PIP_TARGET` — masih daftar yang sama.
 Render video baru bisa dicoba beneran setelah ffmpeg terpasang.
 
+### Untuk sesi berikutnya (sudah dilanjut — lihat Phase 5 di bawah)
+
+---
+
+## Phase 5 — Publish Manual Assist — Status: selesai
+
+### Dibangun
+- **Backend**: model `Post` + migration `d87a7503cb38`. Sengaja **tidak** menyertakan
+  `social_account_id`/`scheduled_at`/`published_at`/`platform_post_id` dari skema SDD
+  penuh — kolom itu baru berarti setelah `social_accounts` (Phase 6) benar-benar ada;
+  nambah kolom nganggur sekarang cuma bikin migrasi berat sebelah waktunya.
+  `app/services/video_render.export_for_platform`: crop ke 9:16 (scale+crop center) +
+  cap durasi per platform (SRS §2.2: IG≤90s, TikTok≤10m, YT≤60s) — auto-adjust, bukan
+  cuma nolak. `app/services/caption_adapter.py`: truncate murni (IG/TikTok 2200,
+  deskripsi YouTube 5000, judul YouTube 100), fungsi pure jadi gampang dites tanpa
+  ffmpeg. `export_post_task` (Celery) jalanin keduanya + upload hasil ke storage.
+  Endpoint: `POST /projects/{id}/posts` (bikin 3 post sekaligus, 1 per platform, wajib
+  project sudah di-render dulu), `GET /projects/{id}/posts`, `GET /posts` (flat, lintas
+  project — buat Content Calendar), `POST /posts/{id}/mark-uploaded` (FR-13/FR-14 self-
+  mark), `GET /posts/{id}/qr` (PNG QR code dari signed download URL — "share to phone").
+- **Frontend**: `PhoneFrame` (border tipis 9:16, bukan mockup HP 3D — DESIGN_SYSTEM
+  §5.4). `/publish` (index, list project yang sudah di-render) dan
+  `/publish/[projectId]` — 3 frame IG/TikTok/YouTube berjajar, tiap frame ada
+  preview video, caption (+judul untuk YouTube), tombol Download, tombol "Bagikan ke
+  HP" (fetch QR pakai header auth di client, bukan `<img src>` polos karena endpoint-nya
+  butuh Bearer token), dan tombol self-mark "Tandai sudah saya upload". `/calendar`:
+  list flat semua post lintas project, status ditulis eksplisit "Siap diupload manual"
+  / "Sudah saya upload" (sesuai istilah di Task Breakdown Phase 5), gaya list kolom
+  (bukan caption "A · B · C" — tetap konsisten sama Media Library).
+
+### Keputusan teknis
+- Publish **diblokir** sampai `content_projects.render_status == "success"` — tidak ada
+  jalan pintas export dari video yang belum di-render, supaya "final video" yang
+  di-crop untuk platform memang benar-benar final (sesuai urutan Timeline Pipeline:
+  Upload→Generate→Edit→Publish, bukan Upload→Generate→Publish).
+- Caption per platform **bukan** kolom terpisah di `content_projects` — `Post.caption`
+  dihitung ulang tiap kali export jalan, dari `project.caption` yang sama, cuma di-
+  adapt beda-beda panjangnya per platform. Satu sumber teks, bukan 3 field caption yang
+  bisa saling tidak sinkron.
+- QR code digenerate di **backend** (paket `qrcode`, sudah disiapkan sejak Phase 0)
+  bukan library JS di frontend — alasannya endpoint yang sama juga jadi satu-satunya
+  tempat yang tahu signed download URL-nya, tidak perlu expose logic presign ke client.
+
+### Cara jalanin / verifikasi
+```bash
+cd backend && .venv\Scripts\activate
+pytest -q        # 36/36 pass — termasuk export yang genuinely gagal tanpa ffmpeg
+                  # (dipaksa deterministik lewat monkeypatch, sama pola kayak Phase 4)
+ruff check .      # clean
+
+cd frontend
+npm run build     # clean
+npm run lint      # clean
+```
+Publish manual end-to-end via browser **belum bisa dites** — sama seperti render Phase
+4, butuh ffmpeg + Postgres/Redis (Docker) terpasang dulu.
+
+### Item follow-up / aksi manual user
+Sama seperti Phase 0-4 — Docker Desktop, ffmpeg, `PIP_TARGET` — masih daftar yang sama,
+belum ada yang user selesaikan. Proses developer app Meta/TikTok/YouTube (checklist di
+`docs/research/developer-app-registration.md`) juga belum dimulai setahu saya — ini yang
+paling lama, sebaiknya mulai sekarang secara paralel.
+
 ### Untuk sesi berikutnya
-Lanjut ke **Phase 5 — Publish Manual Assist**: model `posts` + migration (status
-`manual_ready`/`manual_uploaded`, FR-13/FR-14), service export per-platform (crop rasio
-9:16 + validasi durasi IG/TikTok/YouTube via ffmpeg — pending sama seperti render Phase
-4, dan validator limit karakter caption per platform), endpoint export bundle + "share to
-phone" (QR code), UI Publish/Schedule (3 frame preview 9:16 berjajar, download, QR share)
-dan Content Calendar. Ini phase terakhir yang bisa dikerjakan penuh tanpa nunggu approval
-developer app Meta/TikTok/YouTube — setelah ini, Phase 6 (auto-publish) diblokir sampai
-approval turun.
+**Phase 0-5 (semua yang bisa dikerjakan tanpa approval API pihak ketiga) sudah selesai
+semua.** Produk sekarang punya alur lengkap: daftar/login → upload foto → generate
+video (AI) → edit ringan (trim/caption/musik) + render → siapkan publish per platform
+(crop+durasi+caption otomatis) → download/QR share manual → tandai sudah upload →
+terlihat di Content Calendar. Semuanya sudah diverifikasi lewat test otomatis
+(backend: alur end-to-end via SQLite+Celery eager+moto S3; frontend: build+lint), tapi
+**belum ada satupun yang dites manual lewat browser sungguhan** — itu butuh Docker
+Desktop (Postgres+Redis+MinIO) dan ffmpeg terpasang dulu (lihat daftar follow-up di
+tiap phase di atas).
+
+Sesi berikutnya, urutan yang masuk akal:
+1. **User menyelesaikan item manual**: install Docker Desktop, `docker compose up -d`,
+   install ffmpeg, bersihkan env var `PIP_TARGET` yang salah arah, isi `backend/.env` +
+   `frontend/.env.local` dari `.env.example`.
+2. Begitu itu selesai, jalankan `alembic upgrade head` (baru pertama kali kepakai —
+   6 migration menumpuk dari Phase 1-5, belum pernah dijalankan ke DB asli) dan tes
+   alur lengkap manual lewat browser — ini akan jadi verifikasi nyata pertama untuk
+   semua kode yang sejauh ini cuma tervalidasi lewat mock/test.
+3. **Phase 6 — Koneksi Akun & Auto-Publish** baru bisa mulai dikerjakan setelah
+   developer app Meta/TikTok/YouTube disetujui (bisa berminggu-minggu) — kalau belum
+   disetujui saat sesi berikutnya mulai, jangan mulai Phase 6, cek dulu ke user.
+4. Phase 7 (Quota/Billing/Analytics penuh) dan Phase 8 (testing/hardening/launch) masih
+   menyusul setelah itu sesuai Task Breakdown.
