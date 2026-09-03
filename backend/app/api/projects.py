@@ -7,14 +7,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.posts import post_to_out
 from app.core.security import get_current_user
 from app.models.ai_job import AIJob
 from app.models.base import get_db
 from app.models.content_project import ContentProject
+from app.models.post import Post
 from app.models.user import User
+from app.schemas.post import PostOut
 from app.schemas.project import ContentProjectCreate, ContentProjectOut, ContentProjectUpdate
 from app.services.storage import generate_presigned_url
-from app.workers.tasks import render_project_task
+from app.services.video_render import PLATFORM_DURATION_LIMITS_SECONDS
+from app.workers.tasks import export_post_task, render_project_task
 
 router = APIRouter()
 
@@ -137,3 +141,49 @@ def render_project(
     db.refresh(project)  # eager mode in tests commits via a separate session (see conftest.py)
 
     return _to_out(project, db)
+
+
+@router.post(
+    "/{project_id}/posts", response_model=list[PostOut], status_code=status.HTTP_202_ACCEPTED
+)
+def create_posts(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """FR-13: prepares one export per platform (crop 9:16 + duration cap + caption
+    adaptation) from the project's rendered final video. Requires a successful render
+    first — there's nothing to export otherwise.
+    """
+    project = _get_owned_project(project_id, db, current_user)
+    if project.render_status != "success":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Render project dulu sebelum menyiapkan publish."
+        )
+
+    posts = [
+        Post(project_id=project.id, platform=platform, export_status="queued")
+        for platform in PLATFORM_DURATION_LIMITS_SECONDS
+    ]
+    db.add_all(posts)
+    db.commit()
+
+    for post in posts:
+        db.refresh(post)
+        export_post_task.delay(str(post.id))
+        db.refresh(post)  # eager mode in tests — reflect the task's own commit
+
+    return [post_to_out(post, project) for post in posts]
+
+
+@router.get("/{project_id}/posts", response_model=list[PostOut])
+def list_posts(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = _get_owned_project(project_id, db, current_user)
+    posts = db.execute(
+        select(Post).where(Post.project_id == project.id).order_by(Post.platform)
+    ).scalars()
+    return [post_to_out(post, project) for post in posts]

@@ -1,7 +1,8 @@
-"""Ffmpeg-backed trim for the lightweight editor (FR-05). Requires the `ffmpeg` binary
-on PATH — not bundled by pip. **Not installed on the primary dev machine as of Phase 4**
-(see PROGRESS.md) — this is written correctly against a real install and fails loud with
-an actionable message when the binary is missing, rather than silently no-op'ing.
+"""Ffmpeg-backed video processing: trim (editor, FR-05) and per-platform export (Publish
+Manual Assist, FR-13/SRS §2.2). Requires the `ffmpeg` binary on PATH — not bundled by
+pip. **Not installed on the primary dev machine as of Phase 4** (see PROGRESS.md) — this
+is written correctly against a real install and fails loud with an actionable message
+when the binary is missing, rather than silently no-op'ing.
 """
 import shutil
 import subprocess
@@ -9,6 +10,13 @@ import tempfile
 from pathlib import Path
 
 import httpx
+
+# SRS §2.2: IG Reels <=90s, TikTok <=10min, YouTube Shorts <=60s.
+PLATFORM_DURATION_LIMITS_SECONDS = {
+    "instagram": 90,
+    "tiktok": 600,
+    "youtube": 60,
+}
 
 
 class FFmpegNotAvailableError(Exception):
@@ -27,6 +35,20 @@ def _ensure_ffmpeg_available() -> None:
         )
 
 
+def _download(source_url: str, destination: Path) -> None:
+    with httpx.stream("GET", source_url, timeout=60) as response:
+        response.raise_for_status()
+        with open(destination, "wb") as f:
+            for chunk in response.iter_bytes():
+                f.write(chunk)
+
+
+def _run_ffmpeg(command: list[str]) -> None:
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise VideoRenderError(f"ffmpeg gagal: {result.stderr[-500:]}")
+
+
 def trim_video(
     source_url: str, start_seconds: float | None, end_seconds: float | None
 ) -> bytes:
@@ -39,12 +61,7 @@ def trim_video(
     with tempfile.TemporaryDirectory() as tmp_dir:
         source_path = Path(tmp_dir) / "source.mp4"
         output_path = Path(tmp_dir) / "trimmed.mp4"
-
-        with httpx.stream("GET", source_url, timeout=60) as response:
-            response.raise_for_status()
-            with open(source_path, "wb") as f:
-                for chunk in response.iter_bytes():
-                    f.write(chunk)
+        _download(source_url, source_path)
 
         command = ["ffmpeg", "-y", "-i", str(source_path)]
         if start_seconds is not None:
@@ -53,8 +70,35 @@ def trim_video(
             command += ["-to", str(end_seconds)]
         command += [str(output_path)]
 
-        result = subprocess.run(command, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise VideoRenderError(f"ffmpeg gagal: {result.stderr[-500:]}")
+        _run_ffmpeg(command)
+        return output_path.read_bytes()
 
+
+def export_for_platform(source_url: str, platform: str) -> bytes:
+    """Crops to 9:16 (center crop after fill-scale to 1080x1920) and caps duration to
+    the platform's limit (SRS §2.2) — auto-adjust rather than just rejecting an
+    oversized/wrong-ratio video. Unknown `platform` is a programmer error, not a user
+    one — validate against `PLATFORM_DURATION_LIMITS_SECONDS` before calling this.
+    """
+    duration_limit = PLATFORM_DURATION_LIMITS_SECONDS[platform]
+    _ensure_ffmpeg_available()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        source_path = Path(tmp_dir) / "source.mp4"
+        output_path = Path(tmp_dir) / f"{platform}.mp4"
+        _download(source_url, source_path)
+
+        command = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(source_path),
+            "-t",
+            str(duration_limit),
+            "-vf",
+            "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
+            str(output_path),
+        ]
+
+        _run_ffmpeg(command)
         return output_path.read_bytes()
