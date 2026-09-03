@@ -157,7 +157,62 @@ belum berfungsi).
       `docs/research/developer-app-registration.md` §3) — tanpa ini tombol
       "Masuk dengan Google" tidak akan berfungsi.
 
+### Untuk sesi berikutnya (sudah dilanjut — lihat Phase 2 di bawah)
+
+---
+
+## Phase 2 — Media & Upload — Status: selesai
+
+### Dibangun
+- **Backend**: model `MediaAsset` (`app/models/media_asset.py`) — `file_url` menyimpan
+  **S3 object key**, bukan URL publik (bucket privat, SDD §3.6); URL bertanda tangan
+  (signed) selalu dibuat baru saat dibaca, tidak pernah disimpan. Migrasi
+  `1e41fea2ddea_create_media_assets_table.py`. `app/services/storage.py`: wrapper
+  boto3 generik S3-compatible (ganti MinIO→R2/S3 cuma ubah `.env`).
+  `POST /media/upload`, `GET /media`, `DELETE /media/{id}` (`app/api/media.py`) —
+  validasi tipe & ukuran **server-side** (SRS §2.2: foto ≤20MB jpg/png/webp, video
+  mentah ≤500MB mp4/mov), stream ke `SpooledTemporaryFile` (spool ke disk setelah
+  10MB) supaya upload video besar tidak membebani RAM.
+- **Frontend**: halaman `/media` (Media Library) — list bergaya **bin/media pool**
+  (thumbnail kecil kiri + kolom tipe/ukuran/tanggal terpisah, **bukan** grid kartu
+  atau caption "A · B · C" — DESIGN_SYSTEM §5.3 & Anti-Slop Checklist), dropzone
+  drag-and-drop + klik untuk upload, empty state actionable. Sidebar diupdate:
+  "Media Library" sudah aktif (bukan "Segera" lagi).
+
+### Keputusan teknis
+- Test backend media pakai **moto** (mock S3/AWS) — bukan MinIO asli. Catatan
+  penting: moto **hanya** intercept request ke endpoint AWS asli, jadi test
+  sementara meng-override `settings.s3_endpoint_url` ke `None` di dalam fixture
+  (lihat `tests/test_media.py::s3_bucket`) supaya boto3 diarahkan ke endpoint yang
+  di-mock moto, bukan ke `localhost:9000` (MinIO) yang belum jalan.
+- Thumbnail video belum ada generate preview asli (masih placeholder teks "Video")
+  — generate thumbnail dari frame video itu tugas ffmpeg, masuk akal digabung nanti
+  saat ffmpeg dipakai di Phase 4/5, bukan di-generate sekarang supaya tidak
+  menambah dependency ffmpeg lebih awal dari yang direncanakan.
+
+### Cara jalanin / verifikasi
+```bash
+cd backend && .venv\Scripts\activate
+pytest -q        # 12/12 pass (moto S3 mock)
+ruff check .      # clean
+
+cd frontend
+npm run build     # clean
+npm run lint      # clean
+```
+Upload/list/delete manual end-to-end via browser **belum dites** — butuh MinIO asli
+jalan (`docker compose up -d`, masih pending Docker Desktop) + backend+frontend jalan
+bersamaan dengan `.env`/`.env.local` terisi.
+
+### Item follow-up / aksi manual user
+Sama seperti Phase 0/1 — Docker Desktop, ffmpeg, `PIP_TARGET` — belum ada yang
+berubah statusnya, jadi ini masih daftar yang sama (lihat Phase 0 di atas).
+
 ### Untuk sesi berikutnya
-Lanjut ke **Phase 2 — Media & Upload**: model `media_assets`, endpoint upload ke
-MinIO/S3 (`boto3`, signed URL, validasi tipe/ukuran server-side), UI Media Library
-(list + thumbnail kiri, bukan grid kartu — DESIGN_SYSTEM §5.3).
+Lanjut ke **Phase 3 — AI Generation Integration**: interface `VideoGenerationProvider`
+sudah ada (`app/services/ai_providers/base.py`, dari Phase 0) — tinggal tambah
+`MockVideoProvider` konkret, model `ai_jobs` + migration, task Celery
+`generate_video_task`, endpoint `POST /ai/generate-video` + `GET /ai/jobs/{id}`, UI
+Generate Studio dengan komponen **timeline pipeline** (Upload→Generate→Edit→Publish)
+dan **tally light** status dot (DESIGN_SYSTEM §5.1-5.2) — ini elemen visual pertama
+yang belum ada di frontend sama sekali sampai sejauh ini.
