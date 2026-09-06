@@ -48,8 +48,8 @@ export default function PublishIndexPage() {
       ) : renderedProjects.length === 0 ? (
         <p className="text-sm text-ink-muted">
           Belum ada proyek yang sudah di-render.{" "}
-          <Link href="/editor" className="text-rec hover:underline">
-            Buka Editor
+          <Link href="/studio" className="text-rec hover:underline">
+            Buka Studio
           </Link>{" "}
           untuk render dulu.
         </p>
@@ -58,7 +58,7 @@ export default function PublishIndexPage() {
           {renderedProjects.map((project) => (
             <li key={project.id}>
               <Link
-                href={`/publish/${project.id}`}
+                href={`/studio/${project.id}`}
                 className="flex items-center gap-3 py-3 text-sm transition-colors hover:bg-panel-raised"
               >
                 <TallyDot status={renderStatusDot(project)} />

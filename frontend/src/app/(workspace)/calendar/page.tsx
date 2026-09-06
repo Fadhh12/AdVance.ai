@@ -55,8 +55,8 @@ export default function ContentCalendarPage() {
       ) : posts.length === 0 ? (
         <p className="text-sm text-ink-muted">
           Belum ada post disiapkan.{" "}
-          <Link href="/editor" className="text-rec hover:underline">
-            Buka Editor
+          <Link href="/studio" className="text-rec hover:underline">
+            Buka Studio
           </Link>{" "}
           untuk render lalu siapkan publish.
         </p>
@@ -76,7 +76,7 @@ export default function ContentCalendarPage() {
                   {formatDateTime(post.created_at)}
                 </span>
                 <Link
-                  href={`/publish/${post.project_id}`}
+                  href={`/studio/${post.project_id}`}
                   className="shrink-0 text-xs text-rec hover:underline"
                 >
                   Buka

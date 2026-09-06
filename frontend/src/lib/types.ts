@@ -1,6 +1,6 @@
 export type MediaAsset = {
   id: string;
-  type: "photo" | "video_raw";
+  type: "photo" | "video_raw" | "audio";
   original_filename: string;
   content_type: string;
   size_bytes: number;
@@ -52,4 +52,33 @@ export type ContentProject = {
   final_video_url: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type Template = {
+  id: string;
+  name: string;
+  description: string | null;
+  mode: ProjectMode;
+  prompt_preset: string;
+  thumbnail_url: string | null;
+  created_at: string;
+};
+
+// Phase 6R chat agent — see backend/app/schemas/chat.py. `tool` messages carry the raw
+// result of whatever agent_tools/* function ran (shape varies per tool_name), which is
+// why tool_result stays a loosely-typed record rather than a tool-specific union here.
+export type ChatRole = "user" | "assistant" | "tool";
+
+export type ChatMessage = {
+  id: string;
+  role: ChatRole;
+  content: string;
+  tool_name: string | null;
+  tool_result: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type ChatTurn = {
+  conversation_id: string;
+  messages: ChatMessage[];
 };

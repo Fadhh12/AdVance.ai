@@ -10,8 +10,8 @@ export default function DashboardPage() {
           Upload foto produk pertamamu
         </Link>{" "}
         lalu buka{" "}
-        <Link href="/generate" className="text-rec hover:underline">
-          Generate Studio
+        <Link href="/studio" className="text-rec hover:underline">
+          Studio
         </Link>{" "}
         untuk mulai bikin video.
       </p>

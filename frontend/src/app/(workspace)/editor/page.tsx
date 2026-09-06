@@ -46,7 +46,7 @@ export default function EditorIndexPage() {
       ) : projects.length === 0 ? (
         <p className="text-sm text-ink-muted">
           Belum ada proyek.{" "}
-          <Link href="/generate" className="text-rec hover:underline">
+          <Link href="/studio" className="text-rec hover:underline">
             Generate video dulu
           </Link>{" "}
           untuk mulai edit.
@@ -56,7 +56,7 @@ export default function EditorIndexPage() {
           {projects.map((project) => (
             <li key={project.id}>
               <Link
-                href={`/editor/${project.id}`}
+                href={`/studio/${project.id}`}
                 className="flex items-center gap-3 py-3 text-sm transition-colors hover:bg-panel-raised"
               >
                 <TallyDot status={renderStatusDot(project)} />
