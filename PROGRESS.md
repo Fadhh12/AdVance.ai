@@ -622,9 +622,44 @@ Tidak ada perubahan frontend di fase ini. Tidak ada perubahan response API — e
   (termasuk test 6R-3 sendiri) jalan di atas `MockLLMProvider`, tidak butuh key.
 - Sama seperti sebelumnya: proses developer app Meta/TikTok/YouTube belum dimulai.
 
+### Untuk sesi berikutnya (sudah dilanjut — lihat Phase 6R-2 di bawah)
+
+## Phase 6R-2 — Backend: template gallery — Status: selesai
+
+### Dibangun
+- `app/models/template.py`: model `Template` (global, tidak per-user) —
+  `name`, `description`, `mode`, `prompt_preset`, `thumbnail_url` (nullable, belum ada
+  pipeline seed gambar), `is_active`. Didaftarkan di `app/models/__init__.py`.
+- Migrasi `8b124fa99bc5_create_templates_table.py` (revisi setelah `d87a7503cb38`) —
+  dibuat via `alembic revision --autogenerate` lalu dirapikan manual (autogenerate juga
+  mendeteksi drift index/constraint `users.email` yang tidak berhubungan dan sudah ada
+  dari sebelumnya — sengaja **tidak** disertakan di migrasi ini, di luar scope Phase
+  6R). Seed 4 template starter via `op.bulk_insert`: Unboxing Produk, Testimoni
+  Pelanggan, Before/After, Demo Produk Close-up.
+- `app/schemas/template.py` (`TemplateOut`), `app/api/templates.py`
+  (`GET /templates`, filter opsional `?mode=`, selalu `is_active=True`, tetap butuh
+  login tapi bukan data per-user), didaftarkan di `app/api/router.py`.
+- **Pemetaan ke Generate Studio** (tidak ada field baru): memilih template hanya
+  mengisi field `prompt` yang sudah ada (tetap bisa diedit) + pre-select `mode` untuk
+  `POST /projects` nanti — tidak ada apapun baru yang dikirim ke
+  `POST /ai/generate-video`.
+
+### Keputusan teknis
+- Nama/isi 4 template starter di migrasi adalah placeholder yang gampang diedit
+  langsung di tabel nanti — tidak dianggap keputusan final, tidak ada UI admin untuk
+  ini sekarang (di luar scope Phase 6R).
+
+### Cara jalanin / verifikasi
+```bash
+cd backend && .venv\Scripts\activate
+pytest -q        # 56/56 pass (53 lama + 3 baru: list/filter/auth templates)
+ruff check .      # clean
+alembic upgrade head   # dijalankan ke Postgres asli — sukses, 4 baris ter-seed
+                        # (diverifikasi manual lewat query SQL langsung)
+```
+
 ### Untuk sesi berikutnya
-Lanjut **Phase 6R-2** (backend: template gallery — model, migration+seed, endpoint
-`GET /templates`), lalu **6R-3** (backend: chat agent — model conversation/message,
-agent tools, `AnthropicLLMProvider`, endpoint `/chat/messages`). Rencana lengkap
-7 sub-fase ada di plan file sesi ini (`warm-knitting-journal.md` di direktori plans
-Claude Code) kalau perlu dirujuk ulang.
+Lanjut **Phase 6R-3** (backend: chat agent — model conversation/message, agent tools,
+`AnthropicLLMProvider`, endpoint `/chat/messages`). Rencana lengkap 7 sub-fase ada di
+plan file sesi ini (`warm-knitting-journal.md` di direktori plans Claude Code) kalau
+perlu dirujuk ulang.
