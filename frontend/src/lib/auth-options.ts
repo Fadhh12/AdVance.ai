@@ -60,10 +60,33 @@ export const authOptions: AuthOptions = {
       clientId: process.env.GOOGLE_OAUTH_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? "",
     }),
+    // Guest mode (Phase 6R catatan sesi): the entry page (`/`) calls signIn("guest")
+    // automatically so a first-time visitor lands straight in the workspace, no
+    // login form. `authorize()` ignores whatever credentials are passed and always
+    // asks the backend for a brand-new guest account — the entry page is responsible
+    // for calling this only once per browser session (via next-auth's own session
+    // cookie), never on every render, since each call spends a fresh guest quota.
+    CredentialsProvider({
+      id: "guest",
+      name: "Tamu",
+      credentials: {},
+      async authorize() {
+        const response = await fetch(`${API_BASE_URL}/auth/guest`, { method: "POST" });
+        if (!response.ok) return null;
+
+        const data: BackendTokenResponse = await response.json();
+        return {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.name,
+          accessToken: data.access_token,
+        };
+      },
+    }),
   ],
   callbacks: {
     async jwt({ token, account, user }) {
-      if (account?.provider === "credentials" && user) {
+      if ((account?.provider === "credentials" || account?.provider === "guest") && user) {
         token.accessToken = user.accessToken;
       }
 

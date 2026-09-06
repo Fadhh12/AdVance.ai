@@ -27,7 +27,7 @@ export default function LoginPage() {
       setError("Email atau password salah.");
       return;
     }
-    router.push("/dashboard");
+    router.push("/studio");
   }
 
   return (
@@ -69,7 +69,7 @@ export default function LoginPage() {
 
         <button
           type="button"
-          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+          onClick={() => signIn("google", { callbackUrl: "/studio" })}
           className="mt-3 w-full rounded-md border border-panel-raised px-4 py-2 text-sm text-ink-muted transition-colors hover:bg-panel-raised"
         >
           Masuk dengan Google
@@ -79,6 +79,12 @@ export default function LoginPage() {
           Belum punya akun?{" "}
           <Link href="/register" className="text-rec hover:underline">
             Daftar
+          </Link>
+        </p>
+        <p className="mt-2 text-sm text-ink-muted">
+          Cuma mau coba dulu?{" "}
+          <Link href="/" className="text-rec hover:underline">
+            Lanjut sebagai tamu
           </Link>
         </p>
       </div>
