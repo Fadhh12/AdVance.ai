@@ -30,10 +30,19 @@ def client():
     Base.metadata.create_all(engine)
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-    # Mirrors the "Free" plan seeded by the first Alembic migration in real Postgres.
+    # Mirrors the "Free" + "Unlimited" plans seeded by the Alembic migrations in real
+    # Postgres (856f311546c8, b7b7f3d31c32 — Phase 6R owner account).
     with TestingSessionLocal() as seed_session:
-        seed_session.add(
-            Plan(name="Free", ai_generation_quota=5, connected_accounts_limit=1, price=0)
+        seed_session.add_all(
+            [
+                Plan(name="Free", ai_generation_quota=5, connected_accounts_limit=1, price=0),
+                Plan(
+                    name="Unlimited",
+                    ai_generation_quota=1_000_000,
+                    connected_accounts_limit=100,
+                    price=0,
+                ),
+            ]
         )
         seed_session.commit()
 

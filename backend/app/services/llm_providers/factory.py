@@ -12,14 +12,22 @@ def get_llm_provider() -> LLMProvider:
     if provider_name == "mock":
         return MockLLMProvider()
 
+    if provider_name == "gemini":
+        # Deferred import: keeps the `google-genai` SDK optional at import time — most
+        # installs stay on "mock" and never need it constructed. This is the
+        # recommended real provider for now — free tier, no billing required.
+        from app.services.llm_providers.gemini_provider import GeminiLLMProvider
+
+        return GeminiLLMProvider()
+
     if provider_name == "anthropic":
-        # Deferred import: keeps the `anthropic` SDK optional at import time — most
-        # installs stay on "mock" and never need it constructed.
+        # Deferred import, same reasoning. Upgrade path once there's paid traffic to
+        # justify it — Claude via Anthropic's API is not free (see PROGRESS.md).
         from app.services.llm_providers.anthropic_provider import AnthropicLLMProvider
 
         return AnthropicLLMProvider()
 
     raise NotImplementedError(
         f"AI_LLM_PROVIDER={provider_name!r} belum diimplementasi. "
-        "Provider yang tersedia sekarang: 'mock', 'anthropic'."
+        "Provider yang tersedia sekarang: 'mock', 'gemini', 'anthropic'."
     )

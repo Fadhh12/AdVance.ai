@@ -7,7 +7,9 @@ uvicorn[standard]==0.34.0
 python-multipart==0.0.20
 
 # --- Config / validation ---
-pydantic==2.10.4
+# pydantic bumped by google-genai's own requirement (Phase 6R) — verified compatible,
+# full test suite green.
+pydantic==2.13.5
 pydantic-settings==2.7.1
 email-validator==2.2.0
 python-dotenv==1.0.1
@@ -36,8 +38,10 @@ boto3==1.35.90
 # --- AI provider / social publisher HTTP clients (wrapped behind services/) ---
 httpx==0.28.1
 
-# --- LLM provider (Phase 6R — agen chat). Deferred-imported (services/llm_providers/
-# factory.py) so it's only ever constructed when AI_LLM_PROVIDER=anthropic. ---
+# --- LLM provider (Phase 6R — agen chat). Both deferred-imported (services/
+# llm_providers/factory.py), constructed only when AI_LLM_PROVIDER selects them.
+# gemini = default real provider (free tier); anthropic = paid upgrade path later. ---
+google-genai==2.22.0
 anthropic==1.4.0
 
 # --- Manual Assist exports (Phase 5): caption QR share, video processing ---

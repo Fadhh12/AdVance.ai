@@ -1,8 +1,14 @@
-"""FR-01: register/login (email+password) + Google OAuth sync."""
+"""FR-01: register/login (email+password) + Google OAuth sync. Also `POST /auth/guest`
+(Phase 6R) — an anonymous account so the frontend can land straight on the workspace
+without a visible login form; see app/(workspace)/layout.tsx.
+"""
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.security import (
     create_access_token,
     get_current_user,
@@ -24,9 +30,22 @@ from app.services.google_oauth import GoogleTokenError, verify_google_id_token
 router = APIRouter()
 
 DEFAULT_PLAN_NAME = "Free"
+OWNER_PLAN_NAME = "Unlimited"  # seeded in b7b7f3d31c32_seed_unlimited_plan.py
 
 
-def _default_plan_id(db: Session):
+def _plan_id_for_email(db: Session, email: str | None) -> uuid.UUID | None:
+    """The Unlimited plan is never self-serve — it's assigned only when the
+    registering/logging-in email matches OWNER_EMAIL in .env (Phase 6R). Everyone
+    else, including guests, gets the normal Free plan.
+    """
+    owner_email = get_settings().owner_email
+    if email and owner_email and email.strip().lower() == owner_email.strip().lower():
+        owner_plan = db.execute(
+            select(Plan).where(Plan.name == OWNER_PLAN_NAME)
+        ).scalar_one_or_none()
+        if owner_plan is not None:
+            return owner_plan.id
+
     plan = db.execute(select(Plan).where(Plan.name == DEFAULT_PLAN_NAME)).scalar_one_or_none()
     return plan.id if plan else None
 
@@ -41,7 +60,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         email=payload.email,
         password_hash=hash_password(payload.password),
         name=payload.name,
-        plan_id=_default_plan_id(db),
+        plan_id=_plan_id_for_email(db, payload.email),
     )
     db.add(user)
     db.commit()
@@ -83,11 +102,34 @@ def google_oauth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
         user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
 
     if user is None:
-        user = User(email=email, name=name, google_id=google_id, plan_id=_default_plan_id(db))
+        user = User(
+            email=email, name=name, google_id=google_id, plan_id=_plan_id_for_email(db, email)
+        )
         db.add(user)
     elif user.google_id is None:
         user.google_id = google_id
 
+    db.commit()
+    db.refresh(user)
+
+    return TokenResponse(
+        access_token=create_access_token(user.id), user=UserOut.model_validate(user)
+    )
+
+
+@router.post("/guest", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def guest(db: Session = Depends(get_db)):
+    """Anonymous account, no form to fill (Phase 6R) — always the Free plan (a
+    fabricated email can never match `OWNER_EMAIL`, so `_plan_id_for_email` always
+    falls through to Free here). Each call creates a *new* guest row; the frontend is
+    responsible for persisting the returned token client-side so a page reload doesn't
+    spawn a fresh guest (and fresh quota) every time.
+    """
+    # Note: not `.local` — email-validator (used by Pydantic's EmailStr in UserOut)
+    # rejects that as a reserved special-use domain.
+    guest_email = f"guest+{uuid.uuid4().hex}@guest.advanceai.app"
+    user = User(email=guest_email, name="Tamu", plan_id=_plan_id_for_email(db, guest_email))
+    db.add(user)
     db.commit()
     db.refresh(user)
 

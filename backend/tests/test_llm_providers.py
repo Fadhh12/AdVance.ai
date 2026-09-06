@@ -30,6 +30,24 @@ def test_factory_fails_loud_on_unimplemented_provider(monkeypatch):
         get_llm_provider()
 
 
+def test_factory_gemini_requires_api_key(monkeypatch):
+    # No real network call — GeminiLLMProvider must fail fast (not silently fall back
+    # to mock) when GEMINI_API_KEY isn't set, same contract as AnthropicLLMProvider.
+    settings = get_settings()
+    monkeypatch.setattr(settings, "ai_llm_provider", "gemini")
+    monkeypatch.setattr(settings, "gemini_api_key", "")
+    with pytest.raises(RuntimeError):
+        get_llm_provider()
+
+
+def test_factory_anthropic_requires_api_key(monkeypatch):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "ai_llm_provider", "anthropic")
+    monkeypatch.setattr(settings, "anthropic_api_key", "")
+    with pytest.raises(RuntimeError):
+        get_llm_provider()
+
+
 @pytest.mark.parametrize(
     ("message", "expected_tool"),
     [

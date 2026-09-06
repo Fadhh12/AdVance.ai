@@ -37,13 +37,28 @@ class Settings(BaseSettings):
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
 
+    # --- Owner account (Phase 6R): the email below (if set) gets the "Unlimited" plan
+    # instead of "Free" on register/Google login — see app/api/auth.py. Never commit a
+    # real email here; set it only in the local, gitignored .env.
+    owner_email: str = ""
+
     # --- AI providers (Phase 3) ---
     ai_video_provider: str = "mock"
     ai_video_provider_api_key: str = ""
 
-    # --- LLM / agen chat (Phase 6R — provider confirmed: Claude/Anthropic, not yet
-    # wired; stays "mock" until ANTHROPIC_API_KEY is set and this is flipped) ---
+    # --- AI skills tambahan (Phase 6R — "AI Image"/"AI Audio", belum ada provider
+    # asli dipilih, sama seperti video) ---
+    ai_image_provider: str = "mock"
+    ai_voiceover_provider: str = "mock"
+
+    # --- LLM / agen chat (Phase 6R). Default provider nyata: Gemini (gratis, cocok
+    # selama belum ada penghasilan). Anthropic/Claude tetap ada sebagai upgrade path
+    # (berbayar) begitu traffic/revenue naik — tinggal ganti AI_LLM_PROVIDER, tidak
+    # ada kode lain yang berubah. Stays "mock" (tidak butuh API key apapun) sampai
+    # salah satu key di bawah diisi dan providernya di-set eksplisit. ---
     ai_llm_provider: str = "mock"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5"
 
