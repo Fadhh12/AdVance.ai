@@ -430,6 +430,70 @@ Sesi berikutnya, urutan yang masuk akal:
 
 ---
 
+## Catatan sesi — Verifikasi manual end-to-end pertama (2026-09-07)
+
+Semua item follow-up infra dari Phase 0-5 **selesai** dan alur produk penuh sudah
+dites manual beneran (bukan cuma mock/test otomatis) untuk pertama kali:
+
+- **Docker Desktop terpasang** — sempat kejegal error "WSL needs updating" pas
+  pertama start (WSL2 di mesin ini kekunoan buat engine Docker terbaru). Fix:
+  `wsl --update` lalu `wsl --shutdown` supaya versi baru kepakai, baru Docker
+  Engine bisa nyala. `docker compose up -d` jalan bersih — Postgres, Redis, MinIO
+  semua `healthy`.
+- **ffmpeg terpasang** (`ffmpeg-9.0.1-full_build`, via winget) — sudah terdeteksi
+  di PATH, tidak ada aksi lagi yang perlu dilakukan.
+- **`PIP_TARGET` sudah bersih** (User-level env var kosong) — tidak membajak `pip
+  install` lagi.
+- **`alembic upgrade head` jalan pertama kali ke Postgres asli** — 5 migrasi
+  (Phase 1-5) apply bersih, 7 tabel + seed plan "Free" terverifikasi lewat `psql`.
+- **Full pipeline dites manual lewat API (bukan browser, tapi request nyata ke
+  server nyala)**: register → login → upload foto (MinIO asli) → generate video
+  (job `queued`→`success` diproses **Celery worker asli** via **Redis asli**,
+  bukan eager mode) → buat `content_project` → render (**ffmpeg asli** dipanggil,
+  crop+encode video test jadi `final_video_url` beneran) → `POST .../posts` (3
+  post IG/TikTok/YouTube) → export per-platform (crop 9:16 + caption per-platform,
+  semua `success`) → generate QR code (PNG valid) → mark-uploaded → `GET /posts`
+  flat (Content Calendar) nunjukin status yang benar. Data tes sudah dibersihkan
+  dari Postgres dan MinIO setelahnya.
+- **`SKIP_AUTH` dicopot dari `frontend/.env.local`** — login gate `(workspace)`
+  sudah diverifikasi redirect ke `/login` beneran (bukan lagi bypass) begitu
+  Postgres asli jalan.
+
+### Bug kecil ditemukan saat verifikasi (bukan blocker, dicatat aja)
+- Tidak ada `ON DELETE CASCADE` di foreign key `media_assets`/`ai_jobs`/
+  `content_projects`/`posts` → `users`. Hapus user manual lewat SQL harus urut
+  (posts → content_projects → ai_jobs → media_assets → users) atau kena FK
+  violation. Belum masalah nyata di alur produk (tidak ada fitur "hapus akun"
+  sampai sekarang), tapi kalau fitur itu ditambah nanti, perlu cascade delete atau
+  soft-delete eksplisit.
+
+### Cara jalanin sekarang (semua infra nyala)
+```bash
+docker compose up -d          # Postgres, Redis, MinIO
+
+cd backend && .venv\Scripts\activate
+alembic upgrade head          # cuma perlu sekali / tiap ada migrasi baru
+uvicorn app.main:app --reload
+celery -A app.workers.celery_app worker --loglevel=info --pool=solo   # Windows butuh --pool=solo
+
+cd frontend
+npm run dev   # http://localhost:3000 — login/register sekarang beneran butuh akun asli
+```
+
+### Untuk sesi berikutnya
+Blocker infra lokal **sudah tidak ada lagi**. Yang masih outstanding:
+1. Proses developer app Meta/TikTok/YouTube — belum dimulai, paling lama, mulai
+   paralel dengan phase-phase berikutnya.
+2. Konfirmasi provider AI final (image-to-video, TTS) sebelum implementasi
+   konkret ganti `MockVideoProvider`.
+3. **Phase 6** (Koneksi Akun & Auto-Publish) masih menunggu approval developer
+   app — jangan mulai sampai user bilang approval sudah turun.
+4. Uji coba manual lewat **browser sungguhan** (bukan cuma API via curl/Python
+   seperti verifikasi sesi ini) masih worth dilakukan user sendiri untuk cek UI
+   nyata — backend & data path sudah terbukti jalan.
+
+---
+
 ## Catatan sesi (belum jadi phase sendiri) — Register stuck "Failed to fetch"
 
 User coba register manual, backend sudah jalan (`uvicorn`) tapi Postgres belum (Docker
