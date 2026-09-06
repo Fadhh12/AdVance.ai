@@ -859,3 +859,153 @@ chat), plus sekarang juga perlu slot UI untuk skill AI Image/Audio yang baru dan
 tampilan yang match referensi Dreamina (warna/font/animasi ikut DESIGN_SYSTEM.md,
 bukan AI-slop). Rencana arsitektur dasarnya masih sama seperti di plan file sesi ini
 (`warm-knitting-journal.md`), tapi perlu diperluas dikit buat 3 penambahan ini.
+
+---
+
+## Phase 6R-4/5/6 — Frontend: unified workspace shell, template gallery, chat panel — Status: selesai
+
+Dikerjakan sekaligus dalam satu sesi (bukan 3 commit terpisah seperti rencana awal) —
+ketiganya saling menyambung erat (canvas butuh context; template gallery & chat panel
+sama-sama slot ke canvas itu) sehingga membangun terpisah cuma menambah overhead tanpa
+manfaat nyata. Verifikasi tetap dilakukan menyeluruh di akhir (lihat "Cara jalanin").
+
+### Dibangun
+
+**Mode guest di UI** (backend-nya sudah ada dari catatan sesi sebelumnya):
+- `src/lib/auth-options.ts`: provider `CredentialsProvider({ id: "guest" })` baru —
+  `authorize()` selalu memanggil `POST /auth/guest` (baru), tidak menerima form apapun.
+- `src/app/page.tsx` (ditulis ulang): begitu dibuka, panggil `signIn("guest")` otomatis
+  kalau belum ada sesi, lalu redirect ke `/studio` — tidak ada form login di depan.
+  Guard `useRef` mencegah StrictMode memanggil dua kali; sesi NextAuth sendiri yang
+  mencegah panggilan ulang di kunjungan berikutnya (tiap panggil `/auth/guest`
+  menghabiskan satu akun+kuota baru — lihat komentar di `app/api/auth.py`).
+  Fallback: kalau guest sign-in gagal (mis. backend mati), tampilkan link Masuk/Daftar.
+- `(workspace)/layout.tsx`: redirect ke `/` (bukan lagi `/login`) kalau belum ada sesi.
+- `components/workspace/user-menu.tsx`: badge "Mode Tamu" + link "Simpan sebagai akun"
+  (ke `/register`) untuk guest — email guest (`guest+<uuid>@guest.advanceai.app`) tidak
+  pernah ditampilkan mentah ke user.
+- `/login` dapat tambahan link "Lanjut sebagai tamu" (ke `/`); redirect setelah
+  login/register diarahkan ke `/studio`, bukan `/dashboard` lagi.
+
+**Workspace shell (6R-4)** — satu canvas berkelanjutan menggantikan
+`/generate`, `/editor/[id]`, `/publish/[id]` (dihapus outright):
+- `src/lib/api-client.ts` (baru): `apiFetch`/`apiFetchBlob` generik, ganti pola
+  `fetch(..., {headers:{Authorization}})` yang tadinya diduplikasi di tiap halaman.
+- `components/workspace/workspace-context.tsx`: `WorkspaceProvider`/`useWorkspace()` —
+  state di React Context + `useState` (bukan `useReducer` seperti draf plan awal; untuk
+  ukuran state ini beberapa `useState` lebih sederhana dan sama efektifnya, tanpa
+  menambah dependency). Menyatukan: pilih/upload foto, prompt+mode+template, job
+  generate, project (create/save draft/render), posts (prepare publish/mark uploaded).
+  **Satu** effect polling terpusat (ganti 3 `setInterval` yang tadinya terpisah di
+  masing-masing halaman lama) — jalan tiap 2.5 detik hanya kalau job/render/export ada
+  yang masih in-flight. `applyToolResult(toolName, result)`: jembatan dari chat agent
+  (6R-6) — tiap hasil tool dipetakan ke state yang sama persis yang dipakai tombol UI,
+  jadi aksi lewat chat vs lewat klik memperbarui canvas dengan cara yang sama.
+- `components/workspace/pipeline-header.tsx` + `timeline-pipeline.tsx` (diperbarui,
+  tambah `onStageClick`): strip pipeline persisten, klik satu stage men-scroll ke
+  section-nya di canvas (bukan navigasi halaman lain — workspace-nya memang satu
+  halaman panjang, bukan wizard).
+- `components/workspace/workspace-canvas.tsx` + `panels/{upload,generate,edit,publish}
+  -panel.tsx`: 4 section ditumpuk vertikal (upload → generate → edit → publish),
+  dipisah garis tipis (`divide-y`), bukan kartu terpisah. Auto-scroll halus (satu-
+  satunya motion "disengaja" di luar respons klik langsung, sesuai DESIGN_SYSTEM.md
+  §6) saat project baru dibuat (→ section Edit) dan saat render sukses (→ section
+  Publish).
+- `components/workspace/shell.tsx` (baru): sidebar jadi off-canvas drawer di bawah
+  breakpoint `lg` (tombol hamburger di header) — sebelumnya sidebar `w-56` fixed tidak
+  responsif sama sekali. `(workspace)/layout.tsx` didelegasikan ke sini.
+- `sidebar.tsx`: "Generate Studio"/"Editor"/"Publish" digabung jadi satu link "Studio".
+  Halaman index lama (`editor/page.tsx`, `publish/page.tsx`, `calendar/page.tsx`) tetap
+  ada (tidak di-link dari sidebar lagi) — link-nya diarahkan ke `/studio/[id]`.
+- `app/(workspace)/studio/layout.tsx` + `studio/[[...projectId]]/page.tsx`
+  (catch-all opsional): `/studio` (belum ada project) dan `/studio/<id>` (bookmark)
+  sama-sama merender canvas yang sama; `createProject`/tool `create_project_tool`
+  memanggil `window.history.replaceState` ke `/studio/<id>` begitu project dibuat,
+  tanpa navigasi penuh.
+
+**Template gallery (6R-5)**:
+- `components/workspace/template-gallery.tsx`: filmstrip horizontal-scroll (bukan grid
+  kartu seragam — DESIGN_SYSTEM.md §5.3), fetch `GET /templates` sekali per mount.
+  Pilih template → `context.applyTemplate()` → prefill prompt+mode di Generate panel
+  (tetap bisa diedit manual).
+
+**Chat panel (6R-6)**:
+- `components/workspace/chat-panel.tsx`: satu instance (bukan dua — lihat komentar di
+  kode) yang berubah bentuk lewat CSS breakpoint saja: docked column di `lg+`, tombol
+  mengambang + drawer full-screen di bawah `lg`. Ini penting karena kalau di-mount dua
+  kali (satu untuk mobile, satu untuk desktop, disembunyikan via `hidden`/`lg:hidden`),
+  riwayat percakapan akan bercabang jadi dua — sudah dites dan dihindari sejak awal.
+  Lampirkan foto → `POST /media/upload` asli langsung dari sini (bukan LLM yang
+  "meng-upload" — LLM tidak bisa membawa bytes), lalu id-nya dikirim sebagai
+  `media_asset_id` di `POST /chat/messages` berikutnya.
+  Render pesan `role="tool"` sebagai tally dot + label (bukan log teks polos).
+  Markdown ringan dari balasan Gemini (`**bold**`, `*italic*`, list `- `/`1. `)
+  dirender jadi elemen React manual (bukan `dangerouslySetInnerHTML`, dan sengaja tidak
+  menambah dependency markdown-renderer untuk kasus sekecil ini).
+
+### Bug ditemukan & diperbaiki lewat smoke test browser nyata
+
+Sesi ini diverifikasi dengan smoke test Playwright asli (Chrome sistem, karena
+`playwright install` tidak bisa download browser sendiri di sandbox ini — lihat
+"Keputusan teknis") terhadap stack yang benar-benar jalan (Docker Postgres/Redis/MinIO,
+`GEMINI_API_KEY` asli). Ini menemukan bug nyata yang lolos dari `build`/`lint`:
+**pesan user muncul dobel di chat** — `handle_turn` (backend) selalu mengembalikan
+pesan user yang baru saja disimpan sebagai elemen pertama `messages[]`, sementara
+frontend juga menambahkannya secara optimistik sebelum memanggil API. Diperbaiki
+dengan membuang elemen pertama respons server sebelum di-merge (kontrak
+`handle_turn` menjamin urutan ini, lihat komentar di `chat_agent.py`).
+
+### Keputusan teknis
+
+- **`useState` majemuk, bukan `useReducer`**, untuk `WorkspaceProvider` — deviasi kecil
+  dari draf plan (`warm-knitting-journal.md`). Bentuk state-nya flat, tidak ada
+  transisi kompleks yang butuh reducer; `useState` lebih mudah dibaca untuk ukuran ini.
+- **6R-4/5/6 dikerjakan sebagai satu unit**, bukan 3 commit/verifikasi terpisah seperti
+  urutan di plan awal — canvas, template gallery, dan chat panel saling bergantung
+  erat sejak awal (semua butuh `WorkspaceContext` yang sama), jadi memisahkannya
+  hanya menambah overhead tanpa manfaat integrasi bertahap yang nyata.
+- **Smoke test pakai Chrome sistem (`executablePath`) via `playwright-core`**, bukan
+  `chromium-cli` (tidak tersedia) atau browser bundled Playwright (gagal download —
+  sandbox ini tidak bisa akses `cdn.playwright.dev`). Dependency `playwright-core`
+  diinstal di scratchpad sesi, **bukan** ditambahkan ke `frontend/package.json` —
+  murni alat verifikasi sesi ini, bukan bagian dari aplikasi.
+- **Markdown balasan chat dirender manual** (regex `**bold**`/`*italic*`/list), bukan
+  lewat library (`react-markdown` dll.) — cakupannya kecil (cuma pola yang benar-benar
+  muncul dari Gemini), menambah dependency untuk ini belum sepadan.
+- Kode lampiran chat di atas mengonfirmasi poin desain dari plan awal: intent "generate
+  video dari foto ini" lewat chat betul-betul memanggil `generate_video_tool` →
+  `AIJob` asli (`status: queued`) — bukan simulasi UI semata.
+
+### Cara jalanin / verifikasi
+
+```bash
+cd frontend
+npm run build   # clean
+npm run lint    # clean
+```
+Manual/otomatis, terhadap stack nyata (Docker Postgres/Redis/MinIO healthy, ffmpeg
+terpasang, `GEMINI_API_KEY` asli terisi):
+- Buka `http://localhost:3000` → otomatis masuk sebagai tamu → landing di `/studio`
+  dengan pipeline header, template gallery, upload panel, chat panel — dikonfirmasi
+  lewat screenshot Playwright, nol error console.
+- Upload foto → tally dot Upload jadi solid teal ("selesai").
+- Klik "Generate video" → tally dot Generate jadi amber pulsing ("sedang proses") lalu
+  solid teal ("selesai") lewat polling terpusat, tanpa reload halaman.
+- Chat: "generate video dari foto ini" → `generate_video_tool` beneran jalan (job
+  `queued` sungguhan, dikonfirmasi lewat network response `/chat/messages`), balasan
+  Gemini tampil dengan bold/list ter-render, tanpa pesan dobel.
+- Resize ke 390×844 (mobile): hamburger drawer + tombol mengambang chat AI keduanya
+  muncul dan berfungsi.
+
+### Item follow-up / aksi manual user
+
+- **Coba sendiri end-to-end di browser biasa** (bukan cuma screenshot headless) —
+  terutama alur "Lanjut ke Edit" → render → "Siapkan untuk Publish" yang belum sempat
+  diklik di smoke test sesi ini (sudah diverifikasi lewat kode/lint/build, tapi belum
+  lewat klik nyata sampai ke ujung pipeline).
+- Halaman `editor/page.tsx`/`publish/page.tsx` (daftar riwayat project) tidak lagi ada
+  di sidebar (sesuai plan) — kalau ternyata masih dibutuhkan sebagai navigasi utama,
+  beri tahu supaya ditambahkan lagi sebagai link (bukan cuma reachable via `/editor`
+  langsung).
+- Tombol chat mengambang di mobile menumpuk di pojok kanan-bawah secara permanen
+  (pola FAB umum) — kalau terasa mengganggu konten di bawahnya, bisa disesuaikan.
