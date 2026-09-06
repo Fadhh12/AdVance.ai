@@ -15,11 +15,22 @@ of matching the same user message and re-running the same tool forever.
 """
 from app.services.llm_providers.base import LLMProvider, LLMResponse, ToolCallRequest, ToolSpec
 
+# Order matters: checked top-to-bottom, first match wins — image/audio keywords must
+# come before the generic "generate" (video) check so "generate gambar" doesn't get
+# routed to generate_video_tool. `arguments` is a function of the raw (non-lowercased)
+# message so image/audio tools get *something* usable as prompt/text — a real provider
+# would extract this properly; the mock just hands over the whole message.
 _KEYWORD_TO_TOOL = (
-    (("template",), "apply_template_tool"),
-    (("generate", "buatkan video"), "generate_video_tool"),
-    (("render",), "render_project_tool"),
-    (("publish", "siapkan publish", "export"), "prepare_publish_tool"),
+    (("template",), "apply_template_tool", lambda _text: {}),
+    (("gambar", "generate image"), "generate_image_tool", lambda text: {"prompt": text}),
+    (
+        ("voiceover", "text-to-speech", "suara ai"),
+        "generate_voiceover_tool",
+        lambda text: {"text": text},
+    ),
+    (("generate", "buatkan video"), "generate_video_tool", lambda _text: {}),
+    (("render",), "render_project_tool", lambda _text: {}),
+    (("publish", "siapkan publish", "export"), "prepare_publish_tool", lambda _text: {}),
 )
 
 
@@ -32,16 +43,20 @@ class MockLLMProvider(LLMProvider):
         latest_user_message = next(
             (m["content"] for m in reversed(messages) if m.get("role") == "user"), ""
         )
-        text = latest_user_message.lower()
+        text_lower = latest_user_message.lower()
 
-        for keywords, tool_name in _KEYWORD_TO_TOOL:
-            if tool_name in available and any(keyword in text for keyword in keywords):
-                return LLMResponse(tool_call=ToolCallRequest(name=tool_name, arguments={}))
+        for keywords, tool_name, build_arguments in _KEYWORD_TO_TOOL:
+            if tool_name in available and any(keyword in text_lower for keyword in keywords):
+                return LLMResponse(
+                    tool_call=ToolCallRequest(
+                        name=tool_name, arguments=build_arguments(latest_user_message)
+                    )
+                )
 
         return LLMResponse(
             message=(
                 "Saya belum bisa memproses permintaan itu secara otomatis (mode mock, "
                 "belum ada provider AI asli tersambung). Coba kata kunci seperti "
-                "'generate', 'render', atau 'siapkan publish'."
+                "'generate', 'gambar', 'voiceover', 'render', atau 'siapkan publish'."
             )
         )

@@ -742,13 +742,120 @@ masih yang jalan, bukan kode baru).
   sesi manapun — kalau ada masalah format request/response ke Anthropic API, kemungkinan
   perlu penyesuaian kecil di `anthropic_provider.py` begitu dites nyata.
 
+### Untuk sesi berikutnya (sudah dilanjut — lihat "Catatan sesi" di bawah)
+
+---
+
+## Catatan sesi — LLM diganti ke Gemini (gratis), mode guest, akun Unlimited, AI Image/Audio
+
+Setelah Phase 6R-3, user memutuskan 3 hal tambahan:
+
+1. **LLM agent pakai Gemini, bukan Claude** — karena Claude API berbayar dan produk
+   belum ada penghasilan ("nanti kalau udah ada yang akses banyak dan menghasilkan
+   uang, baru upgrade"). Google Gemini API punya tier gratis (Google AI Studio, tanpa
+   billing) dengan function-calling yang solid.
+2. **Mode guest** — begitu pertama buka app, langsung masuk kayak tamu (tanpa isi
+   form login), tapi sistem akun tetap ada di backend (dibutuhkan buat kuota/
+   kepemilikan data). Ditambah: akun khusus milik user sendiri dengan kuota unlimited.
+3. **Skill AI baru** — user pilih opsi "beneran tambah kemampuan baru" (bukan cuma
+   pola interaksi), terinspirasi dari Dreamina yang punya AI Image, AI Audio, dst.
+
+### Dibangun
+
+**LLM provider — Gemini jadi provider gratis, Claude tetap ada sebagai upgrade path**
+- `app/services/llm_providers/gemini_provider.py`: `GeminiLLMProvider` — pakai SDK
+  resmi `google-genai` (`pip install google-genai`, versi 2.22.0), function-calling
+  lewat `types.FunctionDeclaration`/`types.Tool`. Konstruktor gagal jelas kalau
+  `GEMINI_API_KEY` kosong (sama seperti `AnthropicLLMProvider`).
+- `factory.py` sekarang dukung 3 nama: `mock` (default), `gemini` (direkomendasikan,
+  gratis), `anthropic` (upgrade berbayar nanti) — keduanya lazy-import biar SDK-nya
+  tidak wajib terpasang kalau masih pakai mock.
+- `app/core/config.py` + `.env`/`.env.example`: `GEMINI_API_KEY`, `GEMINI_MODEL`
+  (`gemini-2.5-flash`) ditambah, `anthropic_*` tetap ada.
+- **Efek samping**: `pip install google-genai` menaikkan `pydantic` (2.10.4 → 2.13.5)
+  karena dependency SDK-nya. Sudah diverifikasi kompatibel (77/77 test tetap hijau) —
+  `requirements.txt` di-update ke versi yang benar-benar terpasang.
+
+**Mode guest + akun Unlimited**
+- `app/api/auth.py`: endpoint baru `POST /auth/guest` — bikin akun anonim
+  (`guest+<uuid>@guest.advanceai.app`, plan Free) tanpa perlu isi form, buat frontend
+  langsung "masuk" begitu dibuka (pemakaian nyata di 6R-4, belum dikerjakan sesi ini).
+  Helper `_plan_id_for_email()`: kalau email yang register/login cocok dengan
+  `OWNER_EMAIL` di `.env` (case-insensitive), otomatis dapat plan **"Unlimited"**
+  (bukan "Free") — tidak self-serve, hanya lewat env var yang saya set langsung di
+  `backend/.env` (gitignored, tidak pernah masuk repo).
+- Migrasi `b7b7f3d31c32_seed_unlimited_plan.py`: seed 1 plan "Unlimited"
+  (`ai_generation_quota=1_000_000`).
+- `backend/.env` (lokal, bukan `.env.example`): `OWNER_EMAIL=nabilbiel12@gmail.com`
+  sudah diisi langsung — akun dengan email itu otomatis dapat plan Unlimited begitu
+  daftar/login.
+
+**AI Image + AI Audio (skill baru, di luar spec awal — dikonfirmasi user)**
+- `app/services/ai_providers/image.py` (interface baru, pola sama seperti video) +
+  `mock_image.py`: `MockImageProvider` — belum ada provider gambar asli, mock-nya
+  gambar placeholder beneran (kartu warna panel + teks prompt, pakai Pillow yang
+  sudah jadi dependency lewat `qrcode[pil]`), diupload ke storage, jadi `MediaAsset`
+  baru bertipe `photo` — **bisa langsung dipakai lagi sebagai sumber generate video**.
+- `app/services/ai_providers/voiceover.py` (interface lama Phase 0, baru sekarang
+  disambung) + `mock_voiceover.py`: `MockVoiceoverProvider` — belum ada TTS asli,
+  mock-nya generate klip audio bisu berdurasi wajar (perkiraan dari jumlah kata) via
+  ffmpeg, jadi `MediaAsset` baru bertipe `audio` (tipe baru, tidak perlu migrasi
+  karena kolom `type` cuma string bebas, bukan enum DB).
+- Tool agent baru: `generate_image_tool` (prompt → gambar), `generate_voiceover_tool`
+  (teks → audio) — didaftarkan di registry, `MockLLMProvider` dapat keyword baru
+  ("gambar"/"generate image" → image, "voiceover"/"text-to-speech"/"suara ai" → audio)
+  yang otomatis meneruskan pesan user apa adanya sebagai isi prompt/teks.
+- Exception baru `GenerationFailedError` di `app/services/errors.py` buat skill ini.
+- Rename kecil biar bisa dipakai lintas modul: `video_render._ensure_ffmpeg_available`
+  → `ensure_ffmpeg_available` (public).
+
+### Keputusan teknis
+- **Gemini dipilih sebagai provider gratis "terbaik"** dibanding alternatif gratis
+  lain (mis. Groq+Llama) karena kualitas reasoning/function-calling-nya lebih baik
+  untuk agent yang manggil tool berulang kali. **Belum pernah dites dengan API key
+  asli** — user perlu daftar sendiri di https://aistudio.google.com/apikey (gratis,
+  tanpa kartu kredit) lalu isi `GEMINI_API_KEY` + `AI_LLM_PROVIDER=gemini` di `.env`.
+- **Mode guest baru setengah jalan**: endpoint backend-nya sudah ada dan dites, tapi
+  **frontend belum dipakaikan** — itu bagian dari 6R-4 (workspace shell), supaya tidak
+  ngerjain UI auth 2x (sekali sekarang untuk halaman lama yang segera dihapus, sekali
+  lagi nanti untuk `/studio`).
+- **AI Image/Audio scope-nya dijaga kecil**: cuma dua skill yang relevan ke tujuan
+  produk (foto/gambar & suara buat video iklan) yang dikerjakan, bukan replikasi penuh
+  Dreamina (AI Avatar, 3D, Clay Renderer, Mimic Motion sengaja **tidak** dibangun —
+  di luar tujuan produk "video iklan dari foto produk", akan jadi scope tak terbatas
+  kalau semua ditiru).
+- `MediaAsset.size_bytes=0` untuk hasil AI Image/Audio (bukan file upload asli, tidak
+  ada ukuran byte yang bermakna untuk ditampilkan) — kosmetik saja, tidak dipakai untuk
+  validasi apapun.
+
+### Cara jalanin / verifikasi
+```bash
+cd backend && .venv\Scripts\activate
+pytest -q        # 77/77 pass (68 lama + 9 baru: LLM factory gemini/anthropic,
+                  # AI Image/Audio providers + tools end-to-end lewat chat)
+ruff check .      # clean
+alembic upgrade head   # migrasi Unlimited plan diverifikasi ke Postgres asli
+```
+
+### Item follow-up / aksi manual user
+- **Restart `uvicorn` dan `celery worker` lagi** — perubahan `.env` (OWNER_EMAIL,
+  provider settings) baru kebaca kalau backend di-restart (`pydantic-settings` di-cache
+  sekali per proses).
+- Daftar API key Gemini gratis di https://aistudio.google.com/apikey kalau mau agent
+  beneran jalan pakai AI (bukan `MockLLMProvider`), isi `GEMINI_API_KEY` +
+  `AI_LLM_PROVIDER=gemini` di `backend/.env`.
+- Kalau sebelumnya sudah pernah register akun pakai email `nabilbiel12@gmail.com`
+  SEBELUM `OWNER_EMAIL` ini diisi, akun itu masih ke-assign plan "Free" (plan cuma
+  di-assign saat akun dibuat, bukan diupdate otomatis) — perlu register ulang (kalau
+  belum ada data penting) atau bilang ke saya untuk update `plan_id`-nya manual lewat
+  SQL.
+
 ### Untuk sesi berikutnya
-Backend Phase 6R (6R-1, 6R-2, 6R-3) **selesai semua** dan diverifikasi otomatis
-(62/62 test) + migrasi diverifikasi ke Postgres asli. **Belum ada perubahan frontend
-sama sekali** — endpoint `/templates` dan `/chat/*` sudah ada tapi belum dipakai UI
-manapun. Lanjut ke sisi frontend: **6R-4** (workspace shell: `WorkspaceContext`,
-`TimelinePipeline` jadi header persisten, route `/studio`, hapus halaman
-`/generate`+`/editor/[id]`+`/publish/[id]`), lalu **6R-5** (galeri template di
-Generate panel) dan **6R-6** (panel chat). Ini pergeseran fokus yang cukup besar
-(dari backend service/API ke rombak UI) — rencana detail lengkap ada di plan file
-sesi ini (`warm-knitting-journal.md`).
+Semua kerjaan backend Phase 6R (6R-1, 6R-2, 6R-3, + tambahan LLM/guest/AI skills di
+atas) **selesai dan hijau** (77/77 test, migrasi terverifikasi). **Frontend masih
+belum disentuh sama sekali** — ini beban kerja terbesar yang tersisa: 6R-4 (workspace
+shell + mode guest di UI + hapus halaman lama), 6R-5 (galeri template), 6R-6 (panel
+chat), plus sekarang juga perlu slot UI untuk skill AI Image/Audio yang baru dan
+tampilan yang match referensi Dreamina (warna/font/animasi ikut DESIGN_SYSTEM.md,
+bukan AI-slop). Rencana arsitektur dasarnya masih sama seperti di plan file sesi ini
+(`warm-knitting-journal.md`), tapi perlu diperluas dikit buat 3 penambahan ini.

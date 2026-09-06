@@ -27,7 +27,7 @@ class VideoRenderError(Exception):
     pass
 
 
-def _ensure_ffmpeg_available() -> None:
+def ensure_ffmpeg_available() -> None:
     if shutil.which("ffmpeg") is None:
         raise FFmpegNotAvailableError(
             "ffmpeg tidak ditemukan di PATH. Install ffmpeg dulu, lalu render ulang "
@@ -56,7 +56,7 @@ def trim_video(
     result's raw MP4 bytes. Caller uploads them to storage — this module never touches
     S3 directly, keeping it testable in isolation.
     """
-    _ensure_ffmpeg_available()
+    ensure_ffmpeg_available()
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         source_path = Path(tmp_dir) / "source.mp4"
@@ -86,7 +86,7 @@ def synthesize_placeholder_video(image_url: str, duration_seconds: float = 4.0) 
     a real image-to-video provider (Runway/Kling/...) is wired in — see
     docs/research/ai-providers-comparison.md and CLAUDE.md on not hardcoding a provider.
     """
-    _ensure_ffmpeg_available()
+    ensure_ffmpeg_available()
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         image_path = Path(tmp_dir) / "source"
@@ -126,7 +126,7 @@ def export_for_platform(source_url: str, platform: str) -> bytes:
     one — validate against `PLATFORM_DURATION_LIMITS_SECONDS` before calling this.
     """
     duration_limit = PLATFORM_DURATION_LIMITS_SECONDS[platform]
-    _ensure_ffmpeg_available()
+    ensure_ffmpeg_available()
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         source_path = Path(tmp_dir) / "source.mp4"

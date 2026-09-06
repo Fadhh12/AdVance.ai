@@ -32,3 +32,9 @@ class RenderNotReadyError(Exception):
 
 class TemplateNotFoundError(Exception):
     """Referenced Template doesn't exist or isn't active."""
+
+
+class GenerationFailedError(Exception):
+    """An AI skill (image/voiceover generation, Phase 6R) failed or got bad input —
+    distinct from the video pipeline's own quota/job errors above.
+    """

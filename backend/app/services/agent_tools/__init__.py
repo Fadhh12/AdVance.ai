@@ -6,7 +6,9 @@ picks.
 from app.services.agent_tools import (
     apply_template_tool,
     create_project_tool,
+    generate_image_tool,
     generate_video_tool,
+    generate_voiceover_tool,
     prepare_publish_tool,
     render_project_tool,
     select_media_tool,
@@ -18,6 +20,8 @@ TOOLS: dict[str, AgentTool] = {
     for tool in (
         select_media_tool.TOOL,
         generate_video_tool.TOOL,
+        generate_image_tool.TOOL,
+        generate_voiceover_tool.TOOL,
         create_project_tool.TOOL,
         render_project_tool.TOOL,
         prepare_publish_tool.TOOL,

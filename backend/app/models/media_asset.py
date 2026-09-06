@@ -16,7 +16,9 @@ class MediaAsset(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
-    type: Mapped[str] = mapped_column(String(20))  # "photo" | "video_raw"
+    # "photo" | "video_raw" (user-uploaded) | "audio" (AI-generated voiceover, Phase 6R
+    # — never a user upload, only ever created by generate_voiceover_tool)
+    type: Mapped[str] = mapped_column(String(20))
     file_url: Mapped[str] = mapped_column(String(500))  # S3 object key
     original_filename: Mapped[str] = mapped_column(String(255))
     content_type: Mapped[str] = mapped_column(String(100))
