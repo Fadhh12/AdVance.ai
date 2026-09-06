@@ -35,7 +35,7 @@ def _ensure_ffmpeg_available() -> None:
         )
 
 
-def _download(source_url: str, destination: Path) -> None:
+def download_file(source_url: str, destination: Path) -> None:
     with httpx.stream("GET", source_url, timeout=60) as response:
         response.raise_for_status()
         with open(destination, "wb") as f:
@@ -61,7 +61,7 @@ def trim_video(
     with tempfile.TemporaryDirectory() as tmp_dir:
         source_path = Path(tmp_dir) / "source.mp4"
         output_path = Path(tmp_dir) / "trimmed.mp4"
-        _download(source_url, source_path)
+        download_file(source_url, source_path)
 
         command = ["ffmpeg", "-y", "-i", str(source_path)]
         if start_seconds is not None:
@@ -69,6 +69,51 @@ def trim_video(
         if end_seconds is not None:
             command += ["-to", str(end_seconds)]
         command += [str(output_path)]
+
+        _run_ffmpeg(command)
+        return output_path.read_bytes()
+
+
+def synthesize_placeholder_video(image_url: str, duration_seconds: float = 4.0) -> bytes:
+    """Turns a still photo into a short silent MP4 clip via ffmpeg (loop + pan/zoom),
+    portrait-framed to match the platform export target (1080x1920).
+
+    This is **not** AI video generation — it exists only so `MockVideoProvider`
+    (services/ai_providers/mock.py) hands the rest of the pipeline a real, playable
+    video instead of literally the source photo URL. Without this, `trim_video`/
+    `export_for_platform` downstream ffmpeg calls a 1-frame near-zero-duration input,
+    which reads as a frozen/"stuck" video in the editor preview. Delete this the moment
+    a real image-to-video provider (Runway/Kling/...) is wired in — see
+    docs/research/ai-providers-comparison.md and CLAUDE.md on not hardcoding a provider.
+    """
+    _ensure_ffmpeg_available()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        image_path = Path(tmp_dir) / "source"
+        output_path = Path(tmp_dir) / "placeholder.mp4"
+        download_file(image_url, image_path)
+
+        frame_count = max(1, round(duration_seconds * 25))
+        command = [
+            "ffmpeg",
+            "-y",
+            "-loop",
+            "1",
+            "-i",
+            str(image_path),
+            "-t",
+            str(duration_seconds),
+            "-vf",
+            # Slow zoom-in ("Ken Burns") so it visibly plays rather than sitting on a
+            # static frame — still framed 9:16 to match the platform export target.
+            f"scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+            f"zoompan=z='min(zoom+0.0008,1.15)':d={frame_count}:s=1080x1920:fps=25",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:v",
+            "libx264",
+            str(output_path),
+        ]
 
         _run_ffmpeg(command)
         return output_path.read_bytes()
@@ -86,7 +131,7 @@ def export_for_platform(source_url: str, platform: str) -> bytes:
     with tempfile.TemporaryDirectory() as tmp_dir:
         source_path = Path(tmp_dir) / "source.mp4"
         output_path = Path(tmp_dir) / f"{platform}.mp4"
-        _download(source_url, source_path)
+        download_file(source_url, source_path)
 
         command = [
             "ffmpeg",
