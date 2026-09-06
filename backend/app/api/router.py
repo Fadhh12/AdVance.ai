@@ -4,7 +4,7 @@ that wires them into the app.
 """
 from fastapi import APIRouter
 
-from app.api import ai, auth, health, media, posts, projects, templates
+from app.api import ai, auth, chat, health, media, posts, projects, templates
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -14,6 +14,7 @@ api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 api_router.include_router(posts.router, prefix="/posts", tags=["posts"])
 api_router.include_router(templates.router, prefix="/templates", tags=["templates"])
+api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 # Phase 3: api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 # Phase 4: api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 # Phase 5: api_router.include_router(posts.router, prefix="/posts", tags=["posts"])

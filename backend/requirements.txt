@@ -36,6 +36,10 @@ boto3==1.35.90
 # --- AI provider / social publisher HTTP clients (wrapped behind services/) ---
 httpx==0.28.1
 
+# --- LLM provider (Phase 6R — agen chat). Deferred-imported (services/llm_providers/
+# factory.py) so it's only ever constructed when AI_LLM_PROVIDER=anthropic. ---
+anthropic==1.4.0
+
 # --- Manual Assist exports (Phase 5): caption QR share, video processing ---
 qrcode[pil]==8.0
 ffmpeg-python==0.2.0

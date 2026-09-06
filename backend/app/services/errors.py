@@ -28,3 +28,7 @@ class ProjectNotFoundError(Exception):
 
 class RenderNotReadyError(Exception):
     """Project hasn't been rendered successfully yet — nothing to export."""
+
+
+class TemplateNotFoundError(Exception):
+    """Referenced Template doesn't exist or isn't active."""

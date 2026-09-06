@@ -12,11 +12,14 @@ def get_llm_provider() -> LLMProvider:
     if provider_name == "mock":
         return MockLLMProvider()
 
-    # Claude (Anthropic API) is the confirmed target for the real provider (see
-    # PROGRESS.md Phase 6R) and lands here once `anthropic_provider.py` exists. Fail
-    # loud rather than silently falling back to mock if someone sets an unimplemented
-    # name in .env.
+    if provider_name == "anthropic":
+        # Deferred import: keeps the `anthropic` SDK optional at import time — most
+        # installs stay on "mock" and never need it constructed.
+        from app.services.llm_providers.anthropic_provider import AnthropicLLMProvider
+
+        return AnthropicLLMProvider()
+
     raise NotImplementedError(
         f"AI_LLM_PROVIDER={provider_name!r} belum diimplementasi. "
-        "Provider yang tersedia sekarang: 'mock'."
+        "Provider yang tersedia sekarang: 'mock', 'anthropic'."
     )

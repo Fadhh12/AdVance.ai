@@ -61,3 +61,16 @@ def test_mock_llm_provider_never_calls_a_tool_not_offered():
         messages=[{"role": "user", "content": "tolong generate video"}], tools=[]
     )
     assert response.tool_call is None
+
+
+def test_mock_llm_provider_stops_after_one_tool_call_per_turn():
+    # If the orchestrator loops `complete()` again after running a tool, the mock must
+    # not re-match the same (unchanged) user message and call the same tool again —
+    # that would silently repeat side effects (e.g. burning quota) on every iteration.
+    messages = [
+        {"role": "user", "content": "generate video dari foto ini"},
+        {"role": "tool", "content": "Tool generate_video_tool berhasil: {...}"},
+    ]
+    response = MockLLMProvider().complete(messages=messages, tools=_TOOLS)
+    assert response.tool_call is None
+    assert response.message

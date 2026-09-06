@@ -7,7 +7,11 @@ real local implementation that exercises the whole tool-calling pipeline, not a 
 stub.
 
 Deterministic keyword matching on the latest user message — no network call, no
-randomness, fully unit-testable.
+randomness, fully unit-testable. Never chains tool calls (it has no real reasoning to
+decide when a goal is fulfilled) — `app/services/chat_agent.py` calls `complete()`
+again after running a tool so a real provider *can* chain, but this mock closes with a
+plain reply the moment it sees its own tool result at the end of the history, instead
+of matching the same user message and re-running the same tool forever.
 """
 from app.services.llm_providers.base import LLMProvider, LLMResponse, ToolCallRequest, ToolSpec
 
@@ -21,6 +25,9 @@ _KEYWORD_TO_TOOL = (
 
 class MockLLMProvider(LLMProvider):
     def complete(self, messages: list[dict], tools: list[ToolSpec]) -> LLMResponse:
+        if messages and messages[-1].get("role") == "tool":
+            return LLMResponse(message=f"Oke — {messages[-1]['content']}")
+
         available = {tool.name for tool in tools}
         latest_user_message = next(
             (m["content"] for m in reversed(messages) if m.get("role") == "user"), ""
