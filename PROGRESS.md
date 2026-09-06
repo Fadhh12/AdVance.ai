@@ -524,3 +524,107 @@ browser cuma menampilkan `TypeError: Failed to fetch` tanpa detail apapun. Dua f
    tapi juga gak ada data). Perlu restart `npm run dev` biar env var baru kebaca.
    **Hapus/comment `SKIP_AUTH` dari `.env.local` begitu Docker + Postgres beneran
    jalan** — jangan biarkan nempel, itu literally mematikan auth check.
+
+---
+
+## Catatan sesi — Bug "video stuck" di editor (fixed) + kickoff Phase 6R
+
+User coba alur penuh lewat browser sungguhan (Docker/Celery/ffmpeg semua sudah jalan,
+diverifikasi ulang: `advance-postgres`/`advance-redis`/`advance-minio` healthy,
+`uvicorn --reload` dan `celery worker --pool=solo` sama-sama jalan). Laporan: preview di
+editor tidak muncul, video terasa "stuck".
+
+**Root cause** (bukan masalah infra): `MockVideoProvider` (`backend/app/services/ai_providers/mock.py`)
+selama ini cuma echo URL foto sumber sebagai `result_url`. Begitu ffmpeg beneran ada,
+`trim_video`/`export_for_platform` memproses foto itu sebagai video 1-frame nyaris tanpa
+durasi — itu yang di browser terlihat sebagai video beku.
+
+**Fix**: `synthesize_placeholder_video()` baru di `backend/app/services/video_render.py`
+me-render foto jadi klip MP4 pendek (4 detik, efek zoom pelan, framing 9:16) via ffmpeg;
+`MockVideoProvider` upload hasilnya ke storage dan itu yang jadi `result_url`. Fallback ke
+perilaku lama (echo URL foto) kalau ffmpeg tidak ada atau gambar tidak valid (CI, test
+fixture pakai bytes fake) — 36/36 test lama tetap hijau tanpa diubah. Diverifikasi manual
+(bukan cuma unit test): output MP4 nyata, `ffprobe` konfirmasi durasi 4.0 detik.
+**Aksi yang perlu user lakukan**: restart Celery worker (`Ctrl+C` lalu jalankan ulang) —
+proses itu tidak auto-reload seperti `uvicorn`, jadi masih pakai kode lama sampai di-restart.
+
+**Setelah itu**, user minta arah desain besar terinspirasi dari Dreamina (CapCut AI
+tool): workspace satu-tab (bukan 4 halaman terpisah), AI chat agent yang benar-benar
+mengeksekusi aksi (bukan cuma saran), dan galeri template. Ini scope besar di luar
+Task Breakdown `adVance-AI-Spesifikasi-Proyek.md` saat ini, jadi dikonfirmasi dulu ke
+user sebelum dikerjakan (lihat rules CLAUDE.md soal tidak boleh diam-diam menambah
+scope). User konfirmasi: kerjakan ketiganya, LLM provider untuk agent = **Claude
+(Anthropic API)** (tetap diabstraksi lewat interface seperti `AI_VIDEO_PROVIDER` —
+lihat rencana lengkap di plan file sesi ini), halaman lama (`/generate`,
+`/editor/[id]`, `/publish/[id]`) dihapus langsung begitu `/studio` menggantikannya
+(bukan dipertahankan sebagai rollback path — histori git cukup).
+
+Ini jadi **Phase 6R**, 7 sub-fase (6R-1..6R-7), berjalan independen dari Phase 6
+"Koneksi Akun & Auto-Publish" yang masih diblokir approval developer app (area kode
+beda, tidak konflik — tool "publish" di agent tetap cuma manggil Publish Manual Assist
+yang sudah ada, tidak pernah posting asli).
+
+## Phase 6R-1 — Backend: service extraction + LLM provider interface — Status: selesai
+
+### Dibangun
+- **Refactor murni, tanpa ubah behavior/response contract**: logic yang tadinya inline
+  di route handler dipindah ke service functions supaya AI chat agent (6R-3) bisa
+  manggil fungsi yang sama persis, bukan duplikasi logic:
+  - `app/services/generation_service.py`: `create_generate_video_job()` — dari
+    `app/api/ai.py`'s `generate_video` handler (cek media, cek kuota, bikin `AIJob`,
+    enqueue). Raise `MediaNotFoundError`/`QuotaExceededError` (bukan `HTTPException`
+    langsung) — `app/api/ai.py` yang translate ke status code.
+  - `app/services/project_service.py`: `get_owned_project()`, `create_project_from_job()`,
+    `enqueue_render()` — dari `app/api/projects.py`. `get_owned_project()` sekarang jadi
+    satu-satunya tempat lookup project ter-scope-kepemilikan, dipakai ulang di semua
+    route `projects.py` (sebelumnya ada `_get_owned_project` privat yang diduplikasi).
+  - `app/services/publish_service.py`: `enqueue_publish_manual()` — dari
+    `create_posts` handler. Docstring eksplisit: Manual Assist saja, tidak pernah
+    posting asli.
+  - `app/services/errors.py`: exception domain baru (`MediaNotFoundError`,
+    `QuotaExceededError`, `JobNotFoundError`, `JobNotReadyError`,
+    `ProjectNotFoundError`, `RenderNotReadyError`) — router translate ke
+    `HTTPException` dengan status/pesan yang **persis sama** seperti sebelum refactor.
+- **LLM provider interface** (`app/services/llm_providers/`), mirroring pola
+  `app/services/ai_providers/` persis: `base.py` (`ToolSpec`, `ToolCallRequest`,
+  `LLMResponse` dataclass, `LLMProvider` ABC dengan method `complete()`), `factory.py`
+  (`get_llm_provider()` baca `AI_LLM_PROVIDER` dari settings, `"mock"` →
+  `MockLLMProvider`, selain itu `NotImplementedError` — fail loud, sama seperti
+  `get_video_provider()`), `mock.py` (`MockLLMProvider` — keyword matching
+  deterministik ke nama tool, tanpa network, default provider supaya test/CI tidak
+  pernah butuh API key asli).
+- `app/core/config.py` + `.env.example`: `AI_LLM_PROVIDER=mock` (default),
+  `ANTHROPIC_API_KEY=` (kosong), `ANTHROPIC_MODEL=claude-sonnet-5`.
+
+### Keputusan teknis
+- Provider LLM asli untuk agent **sudah dikonfirmasi user: Claude (Anthropic API)** —
+  tapi implementasi konkretnya (`anthropic_provider.py`) baru masuk di Phase 6R-3
+  bareng tools-nya. `factory.py` di fase ini sengaja **belum** menyebut "anthropic"
+  sebagai opsi valid (masih fail loud kalau di-set) — biar konsisten dengan pola
+  `ai_video_provider` yang cuma daftar provider yang benar-benar sudah ada kodenya.
+- `MockLLMProvider` tetap default (`AI_LLM_PROVIDER=mock`) — sama seperti
+  `MockVideoProvider`, ini implementasi lokal asli yang bisa menjalankan seluruh
+  pipeline (bukan stub kosong), supaya seluruh Phase 6R bisa dibangun & dites tanpa
+  butuh API key Anthropic sampai user benar-benar mau memakainya.
+
+### Cara jalanin / verifikasi
+```bash
+cd backend && .venv\Scripts\activate
+pytest -q        # 53/53 pass (36 lama + 17 baru: generation/project service + LLM provider)
+ruff check .      # clean
+```
+Tidak ada perubahan frontend di fase ini. Tidak ada perubahan response API — endpoint
+`/ai/generate-video`, `/projects/*` tetap sama persis dari sisi klien.
+
+### Item follow-up / aksi manual user
+- Untuk benar-benar pakai Claude nanti (begitu 6R-3 selesai): isi `ANTHROPIC_API_KEY`
+  di `backend/.env` dan set `AI_LLM_PROVIDER=anthropic`. Sampai saat itu semuanya
+  (termasuk test 6R-3 sendiri) jalan di atas `MockLLMProvider`, tidak butuh key.
+- Sama seperti sebelumnya: proses developer app Meta/TikTok/YouTube belum dimulai.
+
+### Untuk sesi berikutnya
+Lanjut **Phase 6R-2** (backend: template gallery — model, migration+seed, endpoint
+`GET /templates`), lalu **6R-3** (backend: chat agent — model conversation/message,
+agent tools, `AnthropicLLMProvider`, endpoint `/chat/messages`). Rencana lengkap
+7 sub-fase ada di plan file sesi ini (`warm-knitting-journal.md` di direktori plans
+Claude Code) kalau perlu dirujuk ulang.

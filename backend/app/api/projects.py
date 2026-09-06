@@ -16,9 +16,15 @@ from app.models.post import Post
 from app.models.user import User
 from app.schemas.post import PostOut
 from app.schemas.project import ContentProjectCreate, ContentProjectOut, ContentProjectUpdate
+from app.services.errors import (
+    JobNotFoundError,
+    JobNotReadyError,
+    ProjectNotFoundError,
+    RenderNotReadyError,
+)
+from app.services.project_service import create_project_from_job, enqueue_render, get_owned_project
+from app.services.publish_service import enqueue_publish_manual
 from app.services.storage import generate_presigned_url
-from app.services.video_render import PLATFORM_DURATION_LIMITS_SECONDS
-from app.workers.tasks import export_post_task, render_project_task
 
 router = APIRouter()
 
@@ -45,44 +51,20 @@ def _to_out(project: ContentProject, db: Session) -> ContentProjectOut:
     )
 
 
-def _get_owned_project(project_id: uuid.UUID, db: Session, current_user: User) -> ContentProject:
-    project = db.execute(
-        select(ContentProject).where(
-            ContentProject.id == project_id, ContentProject.user_id == current_user.id
-        )
-    ).scalar_one_or_none()
-    if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project tidak ditemukan.")
-    return project
-
-
 @router.post("", response_model=ContentProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(
     payload: ContentProjectCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    source_job = db.execute(
-        select(AIJob).where(
-            AIJob.id == payload.source_job_id, AIJob.user_id == current_user.id
+    try:
+        project = create_project_from_job(
+            db, current_user, payload.title, payload.mode, payload.source_job_id
         )
-    ).scalar_one_or_none()
-    if source_job is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Job generate tidak ditemukan.")
-    if source_job.status != "success":
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "Job generate belum selesai atau gagal."
-        )
-
-    project = ContentProject(
-        user_id=current_user.id,
-        title=payload.title,
-        mode=payload.mode,
-        source_job_id=source_job.id,
-    )
-    db.add(project)
-    db.commit()
-    db.refresh(project)
+    except JobNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except JobNotReadyError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
     return _to_out(project, db)
 
@@ -105,7 +87,10 @@ def get_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    project = _get_owned_project(project_id, db, current_user)
+    try:
+        project = get_owned_project(project_id, db, current_user)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     return _to_out(project, db)
 
 
@@ -116,7 +101,10 @@ def update_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    project = _get_owned_project(project_id, db, current_user)
+    try:
+        project = get_owned_project(project_id, db, current_user)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(project, field, value)
     db.commit()
@@ -132,14 +120,10 @@ def render_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    project = _get_owned_project(project_id, db, current_user)
-    project.render_status = "queued"
-    project.render_error_message = None
-    db.commit()
-
-    render_project_task.delay(str(project.id))
-    db.refresh(project)  # eager mode in tests commits via a separate session (see conftest.py)
-
+    try:
+        project = enqueue_render(db, current_user, project_id)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     return _to_out(project, db)
 
 
@@ -155,23 +139,13 @@ def create_posts(
     adaptation) from the project's rendered final video. Requires a successful render
     first — there's nothing to export otherwise.
     """
-    project = _get_owned_project(project_id, db, current_user)
-    if project.render_status != "success":
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "Render project dulu sebelum menyiapkan publish."
-        )
-
-    posts = [
-        Post(project_id=project.id, platform=platform, export_status="queued")
-        for platform in PLATFORM_DURATION_LIMITS_SECONDS
-    ]
-    db.add_all(posts)
-    db.commit()
-
-    for post in posts:
-        db.refresh(post)
-        export_post_task.delay(str(post.id))
-        db.refresh(post)  # eager mode in tests — reflect the task's own commit
+    try:
+        posts = enqueue_publish_manual(db, current_user, project_id)
+        project = get_owned_project(project_id, db, current_user)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except RenderNotReadyError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
     return [post_to_out(post, project) for post in posts]
 
@@ -182,7 +156,10 @@ def list_posts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    project = _get_owned_project(project_id, db, current_user)
+    try:
+        project = get_owned_project(project_id, db, current_user)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     posts = db.execute(
         select(Post).where(Post.project_id == project.id).order_by(Post.platform)
     ).scalars()

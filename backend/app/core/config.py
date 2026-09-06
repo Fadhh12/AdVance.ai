@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     ai_video_provider: str = "mock"
     ai_video_provider_api_key: str = ""
 
+    # --- LLM / agen chat (Phase 6R — provider confirmed: Claude/Anthropic, not yet
+    # wired; stays "mock" until ANTHROPIC_API_KEY is set and this is flipped) ---
+    ai_llm_provider: str = "mock"
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-5"
+
     # --- Social platform apps (Phase 6, not usable yet) ---
     meta_app_id: str = ""
     meta_app_secret: str = ""
