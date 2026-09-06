@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401 — registers all tables on Base.metadata
 import app.models.base as models_base
+from app.core.config import get_settings
 from app.main import app
 from app.models.base import Base, get_db
 from app.models.plan import Plan
@@ -18,6 +19,22 @@ from app.workers.celery_app import celery_app
 # synchronously in-process instead of needing a real broker, so the task code path
 # still gets exercised for real by the test suite.
 celery_app.conf.update(task_always_eager=True, task_eager_propagates=True)
+
+
+@pytest.fixture(autouse=True)
+def _force_mock_providers(monkeypatch):
+    """Settings loads the developer's real local `.env` (pydantic-settings does this
+    regardless of pytest) — the suite must never depend on whatever real provider/API
+    key happens to be configured there for actual local usage. Force every AI provider
+    back to "mock" for the duration of each test; individual tests can still
+    monkeypatch a specific provider name on top of this to test factory fail-loud
+    paths (e.g. test_llm_providers.py's "openai"/"anthropic" cases).
+    """
+    settings = get_settings()
+    monkeypatch.setattr(settings, "ai_video_provider", "mock")
+    monkeypatch.setattr(settings, "ai_llm_provider", "mock")
+    monkeypatch.setattr(settings, "ai_image_provider", "mock")
+    monkeypatch.setattr(settings, "ai_voiceover_provider", "mock")
 
 
 @pytest.fixture()

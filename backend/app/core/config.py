@@ -58,7 +58,10 @@ class Settings(BaseSettings):
     # salah satu key di bawah diisi dan providernya di-set eksplisit. ---
     ai_llm_provider: str = "mock"
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    # gemini-2.5-flash was retired for new API keys (confirmed live, 2026-09) — the
+    # API's own error response pointed at this replacement. Update again if Google
+    # deprecates this one too; it's the only place the model id is hardcoded.
+    gemini_model: str = "gemini-3.6-flash"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5"
 
