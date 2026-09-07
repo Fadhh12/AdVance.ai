@@ -27,11 +27,14 @@ export default function LoginPage() {
       setError("Email atau password salah.");
       return;
     }
-    router.push("/studio");
+    router.push("/dashboard");
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center px-6">
+    <main className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
+      <Link href="/" className="font-display text-lg text-ink-muted hover:text-ink">
+        adVance.AI
+      </Link>
       <div className="w-full max-w-sm rounded-md bg-panel p-8">
         <h1 className="font-display text-2xl text-ink">Masuk ke adVance.AI</h1>
         <p className="mt-1 text-sm text-ink-muted">
@@ -69,7 +72,7 @@ export default function LoginPage() {
 
         <button
           type="button"
-          onClick={() => signIn("google", { callbackUrl: "/studio" })}
+          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
           className="mt-3 w-full rounded-md border border-panel-raised px-4 py-2 text-sm text-ink-muted transition-colors hover:bg-panel-raised"
         >
           Masuk dengan Google
@@ -83,7 +86,7 @@ export default function LoginPage() {
         </p>
         <p className="mt-2 text-sm text-ink-muted">
           Cuma mau coba dulu?{" "}
-          <Link href="/" className="text-rec hover:underline">
+          <Link href="/app" className="text-rec hover:underline">
             Lanjut sebagai tamu
           </Link>
         </p>

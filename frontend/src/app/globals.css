@@ -18,6 +18,13 @@
   --color-ink-muted: #8a8d9c; /* secondary text, labels, timestamps */
 
   --color-paper: #f7f6f2; /* light bg, marketing pages only */
+  /* --color-ink/--color-ink-muted are tuned for dark backgrounds and are close to
+   * invisible on --color-paper. Phase 6R-7 (see DESIGN_SYSTEM.md §5.5): dedicated
+   * dark-on-light text tokens for marketing pages, not a duplicate of the workspace
+   * text scale — --color-paper-ink-muted (#5b5e6e) meets WCAG AA (~5.4:1) against
+   * --color-paper, unlike reusing --color-ink-muted directly (~2.8:1, fails AA). */
+  --color-paper-ink: #1b1d28;
+  --color-paper-ink-muted: #5b5e6e;
 }
 
 @theme inline {
@@ -30,6 +37,8 @@
   --color-ink: var(--color-ink);
   --color-ink-muted: var(--color-ink-muted);
   --color-paper: var(--color-paper);
+  --color-paper-ink: var(--color-paper-ink);
+  --color-paper-ink-muted: var(--color-paper-ink-muted);
 
   --font-display: var(--font-space-grotesk);
   --font-sans: var(--font-inter);

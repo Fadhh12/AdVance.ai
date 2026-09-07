@@ -1,3 +1,5 @@
+"use client";
+
 import { TallyDot, type TallyStatus } from "@/components/ui/tally-dot";
 
 // DESIGN_SYSTEM.md §5.1 "Timeline Pipeline" motif — a functional strip showing where
@@ -5,6 +7,10 @@ import { TallyDot, type TallyStatus } from "@/components/ui/tally-dot";
 // decorative 01/02/03 step list. Phase 6R-4: rendered once, persistently, above the
 // single continuous Studio canvas — `onStageClick` scrolls the canvas to that stage's
 // section instead of navigating to a different page.
+// "use client" (Phase 6R-7): the button below always attaches an onClick, even when
+// `onStageClick` isn't passed — a Server Component (e.g. the marketing page's
+// pipeline-explainer.tsx, which renders this with no handler at all) can't send an
+// event handler function across the server/client boundary without this directive.
 export type PipelineStage = { key: string; label: string; status: TallyStatus; caption: string };
 
 export function TimelinePipeline({

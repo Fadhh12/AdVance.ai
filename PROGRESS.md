@@ -1009,3 +1009,127 @@ terpasang, `GEMINI_API_KEY` asli terisi):
   langsung).
 - Tombol chat mengambang di mobile menumpuk di pojok kanan-bawah secara permanen
   (pola FAB umum) — kalau terasa mengganggu konten di bawahnya, bisa disesuaikan.
+
+---
+
+## Phase 6R-7 — Marketing landing page + Dashboard hub (redesign visual, bagian 1) — Status: selesai
+
+User menunjukkan qreed.ai sebagai referensi tampilan yang ingin ditiru gayanya, plus
+minta beberapa fitur baru besar (AI Influencer, motion graphics/effects, provider
+Google Veo & Seedance). Karena itu penambahan scope besar di luar
+`adVance-AI-Spesifikasi-Proyek.md`, dikonfirmasi dulu ke user urutan kerjanya lewat
+`AskUserQuestion` sebelum ada kode ditulis:
+1. **Redesign visual dulu** (fase ini) — fitur & backend yang sudah ada tetap, tidak
+   ada API/data baru yang dijanjikan ke user produk.
+2. Provider Veo/Seedance: **badge tampilan saja** sekarang (dicek dulu harganya —
+   Veo3 ~$0.75/detik, Seedance $0.04-0.78/detik — mahal & belum ada pemasukan produk
+   untuk nanggung itu). Generation asli tetap `MockVideoProvider`.
+3. Motion graphics: AI auto-apply preset **nanti**, phase terpisah.
+4. AI Influencer: **ditunda**, phase terpisah.
+
+### Dibangun
+
+**Routing — pisahkan marketing (publik) dari workspace (butuh sesi)**:
+- `frontend/src/app/page.tsx` ditulis ulang total jadi landing page publik (server
+  component murni, tanpa next-auth sama sekali) — sebelumnya `/` cuma logic
+  auto-guest-signin+redirect, tidak ada konten marketing apapun.
+- **Baru** `frontend/src/app/app/page.tsx` (`/app`) — logic guest-bootstrap yang
+  dulu ada di `/` dipindah ke sini (redirect tujuan diganti ke `/dashboard`, bukan
+  lagi `/studio`). Semua CTA "Mulai Gratis"/"Lanjut sebagai tamu" di landing/login
+  arahkan ke `/app`, bukan `/`.
+- `(workspace)/layout.tsx`: redirect no-session diganti dari `/` → `/app`.
+- `login/page.tsx`, `register/page.tsx`: redirect sukses diganti ke `/dashboard`
+  (dari `/studio`), tambah link kecil kembali ke `/` di atas form.
+
+**Landing page baru** (`components/marketing/`): `nav.tsx` (sticky, anchor scroll
+`#fitur`/`#cara-kerja`), `hero.tsx` (headline + `PhoneFrame` berisi mockup UI abstrak
+— play icon + pill caption, BUKAN mockup akun sosmed dengan username/like/comment
+fiktif), `pipeline-explainer.tsx` (reuse `TimelinePipeline`/`TallyDot` yang sama
+persis dipakai di workspace, di dalam panel gelap di tengah halaman terang),
+`feature-grid.tsx` (list fitur nyata yang sudah ada — Media Library, Generate
+Studio, AI Chat Agent, AI Image/Audio, Editor Ringan, Publish Manual Assist, dengan
+copy jujur soal auto-post belum ada), `model-badges.tsx` (badge Veo/Seedance ditulis
+sebagai **roadmap** — "dirancang untuk mendukung ... segera menyusul", bukan
+"didukung oleh" yang menyiratkan sudah aktif), `cta-band.tsx`, `footer.tsx` (minimal,
+tanpa link sosmed palsu). **Sengaja tidak ada**: section testimoni/nama pelanggan
+fiktif, tabel harga dengan tier berbayar yang belum ada (cuma plan "Free" nyata di
+backend), section "Akademi"/fitur qreed.ai lain yang tidak match produk kita.
+
+**Dashboard jadi hub** (`(workspace)/dashboard/page.tsx`, sebelumnya placeholder
+kosong sejak Phase 1): greeting, `CreateNewCard` (kartu besar "Buat Baru" →
+`/studio` kosong), `TemplateHubGrid` (grid template dikelompokkan per `mode` —
+"Iklan Produk"/"Affiliate", pakai 4 template asli dari `GET /templates` yang sudah
+ada, **tanpa migrasi backend baru** — cover art gradient deterministik dari hash id
+template, util baru `lib/template-cover.ts`, ikon `lucide-react` per mode),
+`RecentProjectsList` (list bukan grid, reuse pola `GET /projects` dari
+`editor/page.tsx` lama). Klik kartu template → `/studio?mode=...&prompt=...` →
+`studio/[[...projectId]]/page.tsx` baca query itu sekali (`useSearchParams` + guard
+ref) dan panggil `setProjectMode`/`setPrompt` dari `useWorkspace()` — tidak fetch
+ulang atau ubah kontrak `applyTemplate`.
+
+**Polish visual (tanpa ubah behavior)**: dependency baru `lucide-react@1.41.0`
+(dipin exact). `sidebar.tsx` dapat ikon di depan tiap section (link/behavior tidak
+berubah). `ui/button.tsx` dapat prop `size` opsional (`sm|md|lg`, default `md` =
+perilaku lama) buat CTA landing yang lebih besar. `globals.css` dapat 2 token baru:
+`--color-paper-ink` (`#1B1D28`) dan `--color-paper-ink-muted` (`#5B5E6E`) — teks
+khusus tema terang marketing, karena `--color-ink`/`--color-ink-muted` yang ada
+dituning untuk latar gelap dan gagal kontras WCAG AA di atas `bg-paper`.
+
+**`DESIGN_SYSTEM.md`**: tambah §5.5 (pola halaman marketing: token teks terang,
+aturan mockup abstrak bukan social-proof palsu, aturan badge provider harus
+roadmap-honest kalau belum aktif) dan §5.6 (pengecualian §5.3 untuk galeri
+template/konten — grid boleh, dengan syarat cover art tidak seragam generik dan
+tidak nambah chrome filter/search kalau datanya masih sedikit).
+
+### Keputusan teknis
+
+- **`timeline-pipeline.tsx` ditambah `"use client"`**: build production gagal
+  ("Event handlers cannot be passed to Client Component props") karena komponen ini
+  selalu attach `onClick` ke tombolnya (meski `onStageClick` tidak diberikan) —
+  begitu dipakai dari Server Component murni (`pipeline-explainer.tsx` di landing
+  page), fungsi onClick itu tidak bisa diserialisasi lewat batas server/client tanpa
+  directive ini. Perubahan minimal, tidak mengubah perilaku di `pipeline-header.tsx`
+  (sudah `"use client"` dari awal).
+- **Tidak ada migrasi backend baru** untuk grid template di dashboard — dikelompokkan
+  pakai field `mode` yang sudah ada (cuma 2 nilai: `product_ad`/`affiliate`), bukan
+  nambah kolom `category` — supaya tidak menambah data/skema yang belum benar-benar
+  dibutuhkan (baru 4 template ter-seed, lihat Phase 6R-2).
+- Halaman `editor/page.tsx`/`publish/page.tsx` (orphaned sejak Phase 6R-4) **masih
+  dibiarkan apa adanya** — di luar scope fase ini, bukan dihapus tanpa persetujuan
+  eksplisit.
+
+### Cara jalanin / verifikasi
+
+```bash
+cd frontend
+npm install    # lucide-react baru
+npm run build  # clean — "/" sekarang prerender statis
+npm run lint   # clean
+```
+
+Smoke test manual lewat `curl` terhadap `npm run dev` (Docker Postgres/Redis/MinIO +
+backend `uvicorn` sudah jalan dari sesi sebelumnya):
+- `GET /` → 200, judul & hero landing page muncul ("Dari foto produk, jadi video
+  siap tayang."), CTA "Mulai Gratis" ada.
+- `GET /dashboard` (tanpa cookie sesi) → 307 ke `/app` (bukan lagi `/`).
+- `GET /studio` (tanpa cookie sesi) → 307 ke `/app`.
+- `GET /app` → 200, render teks "Menyiapkan dashboard…" (target redirect baru).
+- `GET /login`, `/register` → 200.
+
+**Belum diverifikasi**: klik nyata lewat browser (guest sign-in end-to-end sampai
+mendarat di hub `/dashboard`, klik kartu template sampai prompt ter-prefill di
+`/studio`, resize mobile) — curl tidak menjalankan JS client-side. Mekanisme guest
+sign-in sendiri (`signIn("guest")` → `POST /auth/guest`) tidak diubah sama sekali di
+fase ini (cuma dipindah rute & redirect target), dan sudah pernah diverifikasi
+end-to-end lewat Playwright asli di Phase 6R-4/5/6 — risiko regresi rendah, tapi
+tetap perlu dicoba manual sekali lagi oleh user.
+
+### Item follow-up / aksi manual user
+
+- **Coba manual lewat browser**: buka `http://localhost:3000/`, klik "Mulai Gratis",
+  pastikan mendarat di `/dashboard` dengan grid template & "Buat Baru" muncul, klik
+  satu kartu template, pastikan prompt+mode ter-isi otomatis di Generate panel
+  `/studio`.
+- Belum diputuskan: kapan lanjut ke Phase 6R-8+ (AI Influencer, motion graphics auto-
+  preset, provider Veo/Seedance asli) — semua ditunda sesuai kesepakatan sesi ini,
+  tunggu user yang mulai lagi kapan siap.

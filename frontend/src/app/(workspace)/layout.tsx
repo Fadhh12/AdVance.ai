@@ -14,11 +14,12 @@ const skipAuth = process.env.SKIP_AUTH === "true";
 
 export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
   const session = skipAuth ? null : await getServerSession(authOptions);
-  // No session -> "/" (entry page), not "/login": that page signs the visitor in as a
-  // guest automatically (Phase 6R catatan sesi) and only falls back to showing
-  // Masuk/Daftar links if the guest sign-in itself fails.
+  // No session -> "/app" (guest-bootstrap entry), not "/login" and not "/" anymore:
+  // "/" is the public marketing page (Phase 6R-7) and must never touch next-auth.
+  // "/app" signs the visitor in as a guest automatically (Phase 6R catatan sesi) and
+  // only falls back to showing Masuk/Daftar links if the guest sign-in itself fails.
   if (!skipAuth && !session) {
-    redirect("/");
+    redirect("/app");
   }
 
   const isGuest = Boolean(session?.user?.email?.endsWith("@guest.advanceai.app"));

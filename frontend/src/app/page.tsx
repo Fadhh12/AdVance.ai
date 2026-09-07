@@ -1,71 +1,35 @@
-"use client";
+import type { Metadata } from "next";
 
-import { signIn, useSession } from "next-auth/react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { CtaBand } from "@/components/marketing/cta-band";
+import { FeatureGrid } from "@/components/marketing/feature-grid";
+import { MarketingFooter } from "@/components/marketing/footer";
+import { Hero } from "@/components/marketing/hero";
+import { MarketingNav } from "@/components/marketing/nav";
+import { ModelBadges } from "@/components/marketing/model-badges";
+import { PipelineExplainer } from "@/components/marketing/pipeline-explainer";
 
-// Guest mode (Phase 6R catatan sesi): "begitu pertama buka app, langsung masuk kayak
-// tamu" — no login form on first visit. This page's only job is to get a session (a
-// real one if it already exists, a fresh guest one if not) and hand off to /studio.
-// `signIn("guest")` is guarded by a ref so React StrictMode's double-effect in dev
-// can't spend two guest accounts for one visit; next-auth's own session cookie is
-// what actually prevents a repeat guest sign-in on the *next* visit.
-export default function EntryPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [failed, setFailed] = useState(false);
-  const attempted = useRef(false);
+export const metadata: Metadata = {
+  title: "adVance.AI — Foto produk jadi video, dibantu AI",
+  description:
+    "Upload foto produk, biarkan AI generate videonya, edit ringan, lalu siapkan untuk Instagram, TikTok, dan YouTube.",
+};
 
-  useEffect(() => {
-    if (status === "loading") return;
-
-    if (session) {
-      router.replace("/studio");
-      return;
-    }
-
-    if (attempted.current) return;
-    attempted.current = true;
-
-    signIn("guest", { redirect: false }).then((result) => {
-      if (result?.ok) {
-        router.replace("/studio");
-      } else {
-        setFailed(true);
-      }
-    });
-  }, [session, status, router]);
-
+// Public marketing home (Phase 6R-7 — see PROGRESS.md and DESIGN_SYSTEM.md §5.5).
+// Pure server component: no next-auth here at all. Guest bootstrap used to live at
+// this route ("/") — it moved to /app so simply viewing the marketing page never
+// spends a guest account (see frontend/src/app/app/page.tsx).
+export default function MarketingHomePage() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-      <span
-        className={`h-2 w-2 rounded-full bg-rec ${failed ? "" : "animate-pulse"}`}
-        aria-hidden
-      />
-      <h1 className="font-display text-4xl tracking-tight text-ink">adVance.AI</h1>
-      <p className="max-w-md text-sm text-ink-muted">
-        Upload foto produk, biarkan AI generate videonya, edit ringan, lalu siapkan untuk
-        Instagram, TikTok, dan YouTube.
-      </p>
-
-      {failed ? (
-        <div className="mt-2 flex flex-col items-center gap-2">
-          <p className="text-sm text-alert">
-            Tidak bisa masuk sebagai tamu — backend mungkin belum jalan.
-          </p>
-          <div className="flex gap-4 text-sm">
-            <Link href="/login" className="text-rec hover:underline">
-              Masuk
-            </Link>
-            <Link href="/register" className="text-rec hover:underline">
-              Daftar
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <p className="mt-2 text-sm text-ink-muted">Menyiapkan studio…</p>
-      )}
-    </main>
+    <div className="flex min-h-full flex-1 flex-col bg-paper text-paper-ink">
+      <MarketingNav />
+      <main className="flex-1">
+        <Hero />
+        <PipelineExplainer />
+        <FeatureGrid />
+        <ModelBadges />
+      </main>
+      <CtaBand />
+      <MarketingFooter />
+    </div>
   );
 }

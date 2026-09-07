@@ -73,6 +73,51 @@ Saat preview hasil ke 3 platform (IG/TikTok/YouTube), tampilkan **3 frame video 
 
 ---
 
+### 5.5 Halaman Marketing Publik (Phase 6R-7)
+
+Landing page publik (`/`) pakai tema terang: `bg-paper` (`#F7F6F2`) sebagai
+background, dengan `--color-paper-ink` (`#1B1D28`) dan `--color-paper-ink-muted`
+(`#5B5E6E`) sebagai token teks khusus tema terang ini — **jangan** pakai `text-ink`/
+`text-ink-muted` di atas `bg-paper`, keduanya dituning untuk latar gelap dan nyaris
+tidak terbaca di atas latar terang (kontras gagal WCAG AA).
+
+Pola yang dipakai:
+- Nav sticky (`bg-paper/90 backdrop-blur`), anchor link dalam satu halaman (bukan
+  halaman terpisah) — landing page tetap satu halaman panjang, sama seperti
+  workspace satu-canvas.
+- Hero pakai `PhoneFrame` (sudah ada, `ui/phone-frame.tsx`) berisi mockup UI abstrak
+  (bentuk play button + pill caption) — **bukan** mockup akun media sosial dengan
+  username/foto profil/angka like-comment fiktif. Itu adalah social proof palsu,
+  dilarang di materi publik manapun.
+- Section "cara kerja" me-reuse `TimelinePipeline`/`TallyDot` yang sama persis
+  dipakai di workspace (di dalam panel gelap `bg-canvas`/`bg-panel-raised` sebagai
+  "jendela" produk asli di tengah halaman terang) — bukan ilustrasi terpisah yang
+  diciptakan khusus untuk marketing.
+- **Tidak ada** section testimoni/nama pelanggan, tidak ada tabel harga dengan tier
+  yang belum benar-benar ada (cek `Plan` di backend dulu sebelum menulis harga apa
+  pun), tidak ada nama fitur yang belum dibangun (cek
+  `adVance-AI-Spesifikasi-Proyek.md` dan `PROGRESS.md` dulu).
+- Badge/klaim dukungan model AI pihak ketiga (mis. "Google Veo", "Seedance") harus
+  mencerminkan status implementasi ASLI — pakai kata kerja roadmap ("dirancang untuk
+  mendukung", "segera") kalau providernya belum benar-benar disambungkan
+  (`get_video_provider()` masih return provider lain), jangan "Didukung oleh" yang
+  menyiratkan sudah aktif.
+
+### 5.6 Pengecualian §5.3 untuk Galeri Konten/Template
+
+§5.3 melarang "grid kartu seragam" untuk **dashboard data** (Media Library, Content
+Calendar) karena semua item di situ setara pentingnya — list lebih jujur. Tapi
+**galeri template/konten** (dashboard hub, lihat `dashboard/page.tsx`) boleh berupa
+grid dengan cover art, karena secara fungsi memang mirip pustaka aset visual (stock
+footage library), bukan data operasional. Syaratnya:
+- Cover art tidak boleh seragam shadow/radius generik tanpa hierarki — variasi warna
+  gradient per item boleh (asal dari token warna kita sendiri, bukan foto stok/AI-
+  generated image acak), dan ukuran kartu bisa berbeda berdasarkan hierarki (kartu
+  "Buat Baru" lebih besar dari kartu template).
+- Kalau jumlah item masih sedikit (di bawah ~10), jangan tambah chrome pencarian/
+  filter kategori yang keliatan kosong — itu lebih AI-slop daripada grid sederhana.
+  Tambahkan filter cuma kalau datanya sudah cukup banyak untuk benar-benar berguna.
+
 ## 6. Gerakan (Motion)
 
 Satu momen animasi yang disengaja: **transisi status di timeline pipeline** saat sebuah tahap selesai (dot berubah dari pulsing amber → solid teal, dengan easing halus). Selain itu, motion hanya untuk merespons aksi user (buka panel, expand preview, konfirmasi publish) — bukan scroll-reveal di tiap section landing page.

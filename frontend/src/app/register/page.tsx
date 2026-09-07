@@ -43,11 +43,14 @@ export default function RegisterPage() {
       router.push("/login");
       return;
     }
-    router.push("/studio");
+    router.push("/dashboard");
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center px-6">
+    <main className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
+      <Link href="/" className="font-display text-lg text-ink-muted hover:text-ink">
+        adVance.AI
+      </Link>
       <div className="w-full max-w-sm rounded-md bg-panel p-8">
         <h1 className="font-display text-2xl text-ink">Buat akun adVance.AI</h1>
         <p className="mt-1 text-sm text-ink-muted">
