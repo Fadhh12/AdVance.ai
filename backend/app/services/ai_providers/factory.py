@@ -39,14 +39,19 @@ def get_image_provider() -> ImageGenerationProvider:
 
 
 def get_voiceover_provider() -> VoiceoverProvider:
-    """AI Audio skill (Phase 6R) — no real TTS provider chosen yet, see
-    docs/research/ai-providers-comparison.md (ElevenLabs vs Google/Azure).
+    """AI Audio skill. Default real provider (Phase 6R-9): `edge_tts` — free, no API
+    key, same "free provider first" call as the LLM factory's Gemini default. Lazy
+    import so the `edge-tts` dependency isn't required while still on 'mock'.
     """
     provider_name = get_settings().ai_voiceover_provider
     if provider_name == "mock":
         return MockVoiceoverProvider()
+    if provider_name == "edge_tts":
+        from app.services.ai_providers.edge_tts_voiceover import EdgeTTSVoiceoverProvider
+
+        return EdgeTTSVoiceoverProvider()
 
     raise NotImplementedError(
         f"AI_VOICEOVER_PROVIDER={provider_name!r} belum diimplementasi. "
-        "Provider yang tersedia sekarang: 'mock'."
+        "Provider yang tersedia sekarang: 'mock', 'edge_tts'."
     )

@@ -48,6 +48,11 @@ anthropic==1.4.0
 qrcode[pil]==8.0
 ffmpeg-python==0.2.0
 
+# --- Voice-over provider (Phase 6R-9). Free, no API key — default real provider,
+# same "free first" call as google-genai above. Deferred-imported (ai_providers/
+# factory.py), only constructed when AI_VOICEOVER_PROVIDER=edge_tts. ---
+edge-tts==7.2.8
+
 # --- Dev / test / lint ---
 pytest==8.3.4
 pytest-asyncio==0.25.0
