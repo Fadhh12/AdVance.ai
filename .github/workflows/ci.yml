@@ -20,6 +20,14 @@ jobs:
           python-version: "3.11"
           cache: "pip"
           cache-dependency-path: backend/requirements.txt
+      # ffmpeg is genuinely required by MockVoiceoverProvider (and the render/export
+      # path) — without it here, test_mock_voiceover_provider_produces_real_audio and
+      # test_generate_voiceover_via_chat_creates_audio_asset fail on every CI run
+      # (they don't fail locally because ffmpeg is installed on dev machines). The
+      # deterministic "fails loud without ffmpeg" tests elsewhere (test_projects.py,
+      # test_posts.py, test_ai_skills.py) monkeypatch shutil.which regardless, so
+      # installing it here doesn't affect them.
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pip install -r requirements.txt
       - run: ruff check .
       - run: pytest -q
