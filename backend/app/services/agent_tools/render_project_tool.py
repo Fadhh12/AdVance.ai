@@ -12,7 +12,7 @@ from app.models.user import User
 from app.services.agent_tools.base import AgentTool
 from app.services.errors import ProjectNotFoundError
 from app.services.llm_providers.base import ToolSpec
-from app.services.project_service import enqueue_render
+from app.services.project_service import enqueue_render, get_owned_project
 
 
 def _resolve_project_id(db: Session, current_user: User, project_id: str | None) -> uuid.UUID:
@@ -35,21 +35,41 @@ def _resolve_project_id(db: Session, current_user: User, project_id: str | None)
 
 def _run(db: Session, current_user: User, arguments: dict) -> dict:
     project_id = _resolve_project_id(db, current_user, arguments.get("project_id"))
+
+    motion_preset = arguments.get("motion_preset")
+    if motion_preset:
+        project = get_owned_project(project_id, db, current_user)
+        project.motion_preset = motion_preset
+        db.commit()
+
     project = enqueue_render(db, current_user, project_id)
-    return {"project_id": str(project.id), "render_status": project.render_status}
+    return {
+        "project_id": str(project.id),
+        "render_status": project.render_status,
+        "motion_preset": project.motion_preset,
+    }
 
 
 TOOL = AgentTool(
     spec=ToolSpec(
         name="render_project_tool",
         description=(
-            "Render video project (trim sesuai pengaturan editor) via ffmpeg (default: "
-            "project paling baru kalau project_id tidak disebut)."
+            "Render video project via ffmpeg (default: project paling baru kalau "
+            "project_id tidak disebut). Kalau motion_preset diisi (mis. "
+            "'editorial-newspaper'), video dirender dengan gaya motion/transisi preset "
+            "itu (punch zoom, whip pan, snap cut, dst) alih-alih trim polos."
         ),
         parameters={
             "type": "object",
             "properties": {
-                "project_id": {"type": "string", "description": "ID project (opsional)."}
+                "project_id": {"type": "string", "description": "ID project (opsional)."},
+                "motion_preset": {
+                    "type": "string",
+                    "description": (
+                        "ID motion preset (opsional), mis. 'editorial-newspaper'. Lihat "
+                        "GET /motion-presets untuk daftar lengkap."
+                    ),
+                },
             },
         },
     ),

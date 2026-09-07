@@ -55,6 +55,19 @@ services:
       timeout: 5s
       retries: 10
 
+  # n8n (Phase 6R-10): orchestration/notification only — our backend calls its webhook
+  # when a render/export finishes, n8n fans that out (Discord/Slack notify). No IG/
+  # TikTok/YouTube auto-posting node — developer app approval for those still pending,
+  # see CLAUDE.md.
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: advance-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    volumes:
+      - .docker-data/n8n:/home/node/.n8n
+
   # One-shot: creates the media-assets bucket on first startup, then exits.
   minio-init:
     image: minio/mc:latest

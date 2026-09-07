@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5"
 
+    # --- n8n orchestration (Phase 6R-10) — notification/orchestration only, NEVER
+    # real posting to IG/TikTok/YouTube (developer app approval still pending, see
+    # CLAUDE.md). Empty = disabled, notify_pipeline_event() becomes a no-op.
+    n8n_webhook_url: str = ""
+
     # --- Social platform apps (Phase 6, not usable yet) ---
     meta_app_id: str = ""
     meta_app_secret: str = ""

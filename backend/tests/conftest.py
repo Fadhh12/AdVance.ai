@@ -35,6 +35,10 @@ def _force_mock_providers(monkeypatch):
     monkeypatch.setattr(settings, "ai_llm_provider", "mock")
     monkeypatch.setattr(settings, "ai_image_provider", "mock")
     monkeypatch.setattr(settings, "ai_voiceover_provider", "mock")
+    # Same reasoning: never let a real local N8N_WEBHOOK_URL cause tests to fire real
+    # HTTP calls out to an n8n instance (Phase 6R-10) — force disabled by default,
+    # individual tests can still monkeypatch it back on to test the notify path itself.
+    monkeypatch.setattr(settings, "n8n_webhook_url", "")
 
 
 @pytest.fixture()

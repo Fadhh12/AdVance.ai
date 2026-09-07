@@ -43,7 +43,7 @@ def download_file(source_url: str, destination: Path) -> None:
                 f.write(chunk)
 
 
-def _run_ffmpeg(command: list[str]) -> None:
+def run_ffmpeg(command: list[str]) -> None:
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
         raise VideoRenderError(f"ffmpeg gagal: {result.stderr[-500:]}")
@@ -70,7 +70,7 @@ def trim_video(
             command += ["-to", str(end_seconds)]
         command += [str(output_path)]
 
-        _run_ffmpeg(command)
+        run_ffmpeg(command)
         return output_path.read_bytes()
 
 
@@ -115,7 +115,7 @@ def synthesize_placeholder_video(image_url: str, duration_seconds: float = 4.0) 
             str(output_path),
         ]
 
-        _run_ffmpeg(command)
+        run_ffmpeg(command)
         return output_path.read_bytes()
 
 
@@ -145,5 +145,5 @@ def export_for_platform(source_url: str, platform: str) -> bytes:
             str(output_path),
         ]
 
-        _run_ffmpeg(command)
+        run_ffmpeg(command)
         return output_path.read_bytes()

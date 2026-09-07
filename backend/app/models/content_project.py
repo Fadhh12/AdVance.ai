@@ -32,6 +32,12 @@ class ContentProject(Base):
     music_track: Mapped[str | None] = mapped_column(String(100), nullable=True)
     trim_start_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     trim_end_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Motion preset id (Phase 6R-8, e.g. "editorial-newspaper") — code-defined catalog
+    # in services/motion_presets/registry.py, not a FK (no DB table for presets: a
+    # preset is render logic, not data). When set, render_project_task builds the
+    # styled clip via services/motion_presets/engine.py instead of a plain trim, and
+    # trim_start/end_seconds are ignored (the preset dictates its own duration).
+    motion_preset: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Render worker (ffmpeg) state — separate from `status` so a failed render doesn't
     # need a bespoke value squeezed into SDD's draft/ready/scheduled/published set.

@@ -15,6 +15,9 @@ from app.models.post import Post
 from app.services.ai_providers.base import TransientProviderError
 from app.services.ai_providers.factory import get_video_provider
 from app.services.caption_adapter import adapt_caption
+from app.services.errors import InvalidMotionPresetError
+from app.services.motion_presets.engine import apply_motion_preset
+from app.services.n8n_notify import notify_pipeline_event
 from app.services.storage import generate_presigned_url, upload_object
 from app.services.video_render import (
     FFmpegNotAvailableError,
@@ -90,16 +93,31 @@ def render_project_task(project_id: str) -> None:
             project.render_status = "failed"
             project.render_error_message = "Video sumber (hasil generate) tidak ditemukan."
             db.commit()
+            notify_pipeline_event(
+                "render.failed",
+                {"project_id": str(project.id), "error": project.render_error_message},
+            )
             return
 
         try:
-            video_bytes = trim_video(
-                source_job.result_url, project.trim_start_seconds, project.trim_end_seconds
-            )
-        except (FFmpegNotAvailableError, VideoRenderError) as exc:
+            # Motion preset (Phase 6R-8) supersedes plain trim when set — the preset
+            # dictates its own duration/style, trim_start/end_seconds are ignored.
+            if project.motion_preset:
+                video_bytes = apply_motion_preset(
+                    project.motion_preset, source_job.result_url, caption=project.caption
+                )
+            else:
+                video_bytes = trim_video(
+                    source_job.result_url, project.trim_start_seconds, project.trim_end_seconds
+                )
+        except (FFmpegNotAvailableError, VideoRenderError, InvalidMotionPresetError) as exc:
             project.render_status = "failed"
             project.render_error_message = str(exc)
             db.commit()
+            notify_pipeline_event(
+                "render.failed",
+                {"project_id": str(project.id), "error": project.render_error_message},
+            )
             return
 
         key = f"renders/{project.id}/{uuid.uuid4()}.mp4"
@@ -108,6 +126,10 @@ def render_project_task(project_id: str) -> None:
         project.final_video_url = key
         project.render_status = "success"
         db.commit()
+        notify_pipeline_event(
+            "render.success",
+            {"project_id": str(project.id), "title": project.title},
+        )
     finally:
         db.close()
 
@@ -129,6 +151,14 @@ def export_post_task(post_id: str) -> None:
             post.export_status = "failed"
             post.export_error_message = "Project belum di-render — render dulu sebelum export."
             db.commit()
+            notify_pipeline_event(
+                "export.failed",
+                {
+                    "post_id": str(post.id),
+                    "platform": post.platform,
+                    "error": post.export_error_message,
+                },
+            )
             return
 
         try:
@@ -138,6 +168,14 @@ def export_post_task(post_id: str) -> None:
             post.export_status = "failed"
             post.export_error_message = str(exc)
             db.commit()
+            notify_pipeline_event(
+                "export.failed",
+                {
+                    "post_id": str(post.id),
+                    "platform": post.platform,
+                    "error": post.export_error_message,
+                },
+            )
             return
 
         key = f"exports/{post.id}/{post.platform}.mp4"
@@ -148,5 +186,9 @@ def export_post_task(post_id: str) -> None:
         post.export_status = "success"
         post.status = "manual_ready"
         db.commit()
+        notify_pipeline_event(
+            "export.success",
+            {"post_id": str(post.id), "platform": post.platform, "project_id": str(project.id)},
+        )
     finally:
         db.close()
