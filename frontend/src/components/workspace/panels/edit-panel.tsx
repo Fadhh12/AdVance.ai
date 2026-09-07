@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
+import { MotionPresetPicker } from "@/components/workspace/motion-preset-picker";
 import { useWorkspace } from "@/components/workspace/workspace-context";
 
 // No real music catalog yet — just enough to exercise "pilih musik" (FR-05). Wiring an
@@ -69,6 +70,8 @@ export function EditPanel() {
           />
         )}
       </div>
+
+      <MotionPresetPicker />
 
       <div className="grid max-w-sm grid-cols-2 gap-3">
         <TextField

@@ -46,6 +46,7 @@ export type ContentProject = {
   music_track: string | null;
   trim_start_seconds: number | null;
   trim_end_seconds: number | null;
+  motion_preset: string | null;
   render_status: "queued" | "processing" | "success" | "failed" | null;
   render_error_message: string | null;
   source_video_url: string;
@@ -62,6 +63,17 @@ export type Template = {
   prompt_preset: string;
   thumbnail_url: string | null;
   created_at: string;
+};
+
+// Phase 6R-8 — code-defined catalog (backend/app/services/motion_presets/registry.py),
+// not per-user data, same shape as backend/app/schemas/motion_preset.py.
+export type MotionPreset = {
+  id: string;
+  name: string;
+  description: string;
+  aspect_ratio: string;
+  min_duration_seconds: number;
+  max_duration_seconds: number;
 };
 
 // Phase 6R chat agent — see backend/app/schemas/chat.py. `tool` messages carry the raw
