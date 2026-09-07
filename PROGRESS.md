@@ -1129,3 +1129,135 @@ Resize mobile (390px) untuk landing page juga dikonfirmasi rapi lewat screenshot
 - Belum diputuskan: kapan lanjut ke Phase 6R-8+ (AI Influencer, motion graphics auto-
   preset, provider Veo/Seedance asli) — semua ditunda sesuai kesepakatan sesi ini,
   tunggu user yang mulai lagi kapan siap.
+
+---
+
+## Phase 6R-8/9/10/11 — Motion preset engine, voice-over asli, n8n orchestration — Status: selesai
+
+User minta hasil editor benar-benar otomatis (motion, transisi, sound, voice AI) dan
+kasih 2 prompt referensi (gaya paper-cutout/newspaper collage dari TikTok, + instruksi
+eksplisit "buatkan preset `editorial-newspaper` di modul video-effect generator kita").
+Juga minta workflow n8n (via `n8n-mcp`) untuk automation. Scope besar di luar spec awal
+— dikonfirmasi dulu lewat `AskUserQuestion` sebelum kode ditulis (lihat plan file sesi
+ini kalau perlu detail): **n8n = orkestrasi/notifikasi saja** (auto-posting IG/TikTok/
+YouTube masih diblokir approval developer app, CLAUDE.md), **motion = ffmpeg lokal**
+(bukan provider AI video berbayar — belum ada budget/provider dipilih), **voice-over =
+provider gratis** (edge-tts), **urutan = motion engine dulu** baru redesign visual
+lanjutan (redesign visual lanjutan **belum dikerjakan sesi ini** — lihat follow-up).
+
+### Dibangun
+
+**Motion preset engine (6R-8)** — `backend/app/services/motion_presets/`: catalog
+code-defined (`registry.py`, `MOTION_PRESETS` dict) — preset adalah render logic bukan
+data, pola sama seperti `video_render.PLATFORM_DURATION_LIMITS_SECONDS`. Preset pertama
+`editorial-newspaper` (`editorial_newspaper.py`): 3 "shot" Ken-Burns (zoompan) dari 3
+still frame source di timestamp berbeda (punch zoom, drift/whip-pan, handheld shake),
+digabung via concat demuxer dengan snap cut + 1 frame-flash (klip putih 0.08s), caption
+burn-in opsional via drawtext (font Anton — OFL-licensed, dibundel di
+`assets/Anton-Regular.ttf`, bukan bergantung fontconfig OS). Output 1080x1920, 5-7 detik
+(target 6s). `engine.py`: `apply_motion_preset()`, entrypoint publik pola sama seperti
+`video_render.export_for_platform` (download→temp dir→bytes, tidak sentuh storage).
+`ContentProject.motion_preset` (kolom baru, migrasi `54d6d000930b`) — kalau diisi,
+`render_project_task` pakai preset engine ini menggantikan `trim_video` polos (trim
+start/end diabaikan, preset yang tentukan durasi). Endpoint baru `GET /motion-presets`
+(katalog, read-only). `render_project_tool` (agent) dapat argumen opsional
+`motion_preset`. `video_render._run_ffmpeg` → `run_ffmpeg` (public, dipakai lintas
+modul, pola sama seperti rename `ensure_ffmpeg_available` sebelumnya).
+**Diverifikasi manual terhadap ffmpeg asli** (bukan cuma test/mock) — output dicek
+`ffprobe` (1080x1920/30fps/6.0s persis) dan frame diperiksa visual. Nemu & fix 2 bug
+ffmpeg nyata di proses ini: (1) build ffmpeg Windows di mesin ini tidak ada file config
+fontconfig sama sekali → `drawtext` butuh `fontfile=` path eksplisit, bukan lookup nama
+font; (2) `drawtext` mode `expansion` default menganggap `%` sendirian sebagai awal
+format-specifier ("Stray %") → fix pakai `expansion=none` (percobaan escape `%%`/`\%`
+duanya TIDAK berhasil di versi ffmpeg ini, meski beberapa dokumentasi online bilang
+begitu).
+
+**Voice-over asli (6R-9)** — `EdgeTTSVoiceoverProvider`
+(`app/services/ai_providers/edge_tts_voiceover.py`): pakai `edge-tts` (gratis, tanpa
+API key, suara neural Microsoft Edge), alasan sama seperti pemilihan Gemini
+sebelumnya ("gratis dulu"). Default suara `id-ID-ArdiNeural` (Indonesia, sesuai bahasa
+produk). Panggilan network diisolasi di `_synthesize_bytes()` supaya test tidak pernah
+hit network asli. `factory.get_voiceover_provider()` dapat cabang `edge_tts` (lazy
+import). Default tetap `mock` di `.env.example` — `edge_tts` didokumentasikan sebagai
+rekomendasi, tapi opt-in (user isi sendiri).
+
+**n8n orchestration (6R-10)** — **orkestrasi/notifikasi saja, TIDAK PERNAH posting
+asli** ke IG/TikTok/YouTube (developer app belum approved, CLAUDE.md). Service `n8n`
+baru di `docker-compose.yml` (image `n8nio/n8n`, port 5678). Backend kirim webhook
+fire-and-forget (`app/services/n8n_notify.py`, `notify_pipeline_event()`) ke
+`N8N_WEBHOOK_URL` saat render/export sukses/gagal (hook di `workers/tasks.py`, di
+`render_project_task` & `export_post_task`) — gagal kirim webhook cuma di-log, tidak
+pernah melempar exception (notifikasi gagal tidak boleh merusak pipeline video).
+Nonaktif default (`N8N_WEBHOOK_URL` kosong). **Belum dibuat**: workflow n8n asli
+(Webhook trigger → notifikasi Discord/Slack) — itu langkah lanjutan setelah n8n
+container jalan + API key dibuat + `n8n-mcp` di-install sebagai MCP tool + user kasih
+URL webhook Discord/Slack-nya (semua butuh aksi manual user, lihat follow-up).
+**`n8n-mcp` itu sendiri belum diinstall** sesi ini (baru scaffolding-nya).
+
+**Frontend (6R-11)** — `MotionPresetPicker`
+(`components/workspace/motion-preset-picker.tsx`): filmstrip fetch `GET
+/motion-presets`, pola visual sama seperti `TemplateGallery` (DESIGN_SYSTEM §5.3/§5.6).
+Ditaruh di `edit-panel.tsx` di atas field trim. `WorkspaceContext` dapat
+`motionPreset`/`setMotionPreset`, masuk ke body PATCH `saveDraft()` yang sudah ada
+(pola sama seperti caption/music_track — user klik "Simpan draft" dulu baru "Render
+video", tidak ada endpoint baru).
+
+### Keputusan teknis
+
+- Motion preset **code-defined**, bukan tabel DB — beda filosofi dari `Template`
+  (yang memang cuma data/prompt teks). Preset = logika render (filter graph ffmpeg),
+  nambah preset baru = nambah modul Python, bukan lewat admin UI/seed data.
+- Ken-Burns 3-shot dari 1 sumber (bukan 1 `filter_complex` raksasa) — lebih gampang
+  didebug/diverifikasi per langkah (masing-masing panggilan ffmpeg cuma 1 tugas),
+  match gaya kode `video_render.py` yang sudah ada (fungsi-fungsi kecil terpisah,
+  bukan filter graph kompleks).
+- Font dibundel langsung di repo (`motion_presets/assets/`, OFL-licensed) — bukan
+  bergantung font sistem/fontconfig, supaya identik di Windows dev machine, Linux CI,
+  dan produksi nanti.
+- n8n scope **sengaja dibatasi ketat** ke notifikasi — godaan untuk langsung bikin
+  node auto-post ditolak eksplisit sesuai konfirmasi user + CLAUDE.md, meski secara
+  teknis n8n workflow BISA punya node posting kalau developer app-nya sudah ada
+  (belum ada sekarang).
+
+### Cara jalanin / verifikasi
+
+```bash
+cd backend && .venv\Scripts\activate
+pytest -q        # 89/89 pass
+ruff check .      # clean
+alembic upgrade head   # migrasi motion_preset diverifikasi ke Postgres asli
+
+cd frontend
+npm run build     # clean
+npm run lint      # clean
+```
+Motion preset diverifikasi manual terhadap ffmpeg asli (lihat "Dibangun" di atas) —
+**belum dites end-to-end lewat browser** (pilih preset di `/studio` → render → lihat
+hasil beneran). `docker compose up -d` (service `n8n` baru) **belum pernah dicoba
+jalan** sesi ini — cuma didefinisikan di compose file, belum diverifikasi start bersih.
+
+### Item follow-up / aksi manual user
+
+- [ ] **Coba end-to-end lewat browser**: `/studio` → Edit → pilih preset
+      "Editorial Newspaper" → Simpan draft → Render video → cek hasilnya beneran
+      punya motion/transisi (bukan cuma trim polos).
+- [ ] `docker compose up -d` untuk menyalakan service `n8n` baru, buka
+      `http://localhost:5678`, buat akun owner n8n pertama kali, lalu generate API key
+      (Settings → API) — kirim key itu supaya `n8n-mcp` bisa di-install & disambungkan
+      (`claude mcp add n8n-mcp -- npx n8n-mcp` dengan `N8N_API_URL`/`N8N_API_KEY`).
+- [ ] Kasih URL webhook Discord/Slack (tempat notifikasi "video siap diupload" mau
+      dikirim) — setelah itu baru workflow n8n asli (Webhook trigger → branch event →
+      notifikasi) bisa dibuat via `n8n-mcp`.
+- [ ] Isi `N8N_WEBHOOK_URL` di `backend/.env` begitu workflow n8n-nya sudah jadi &
+      dapat URL webhook-nya sendiri dari n8n (baru itu notifikasi render/export benar-
+      benar terkirim — sekarang masih no-op karena kosong).
+- [ ] Kalau mau voice-over AI beneran (bukan cuma dipasang providernya): set
+      `AI_VOICEOVER_PROVIDER=edge_tts` di `backend/.env`, restart backend — tidak
+      butuh API key.
+- Redesign visual/konten lanjutan (qreed.ai lebih dalam: warna/font/animasi/isi
+  konten) **masih belum dikerjakan** — disepakati dikerjakan setelah motion engine ini
+  (urutan dari `AskUserQuestion` sesi ini), belum mulai.
+- Background music bed (`music_track` masih cuma nama string, belum ada file audio
+  asli di-mixing) — di luar scope sesi ini, butuh sumber audio royalty-free asli.
+- AI video-gen provider berbayar (Veo/Kling/dst, biar `prompt` teks benar-benar
+  menggerakkan AI video generation asli) — masih ditunda, butuh keputusan budget.
