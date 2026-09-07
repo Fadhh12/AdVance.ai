@@ -1116,20 +1116,16 @@ backend `uvicorn` sudah jalan dari sesi sebelumnya):
 - `GET /app` → 200, render teks "Menyiapkan dashboard…" (target redirect baru).
 - `GET /login`, `/register` → 200.
 
-**Belum diverifikasi**: klik nyata lewat browser (guest sign-in end-to-end sampai
-mendarat di hub `/dashboard`, klik kartu template sampai prompt ter-prefill di
-`/studio`, resize mobile) — curl tidak menjalankan JS client-side. Mekanisme guest
-sign-in sendiri (`signIn("guest")` → `POST /auth/guest`) tidak diubah sama sekali di
-fase ini (cuma dipindah rute & redirect target), dan sudah pernah diverifikasi
-end-to-end lewat Playwright asli di Phase 6R-4/5/6 — risiko regresi rendah, tapi
-tetap perlu dicoba manual sekali lagi oleh user.
+**Klik nyata lewat browser sudah dicoba** (Chrome sistem via `playwright-core`, pola
+sama seperti smoke test Phase 6R-4/5/6): `/` → klik "Mulai Gratis" → guest sign-in
+otomatis → mendarat di `/dashboard` (grid template per mode + "Buat Baru" muncul,
+dikonfirmasi lewat screenshot) → klik kartu "Unboxing Produk" → `/studio?mode=
+product_ad&prompt=...` → field "Gaya referensi" di Generate panel ter-prefill
+otomatis dari `prompt_preset` template. Nol error console di sepanjang alur ini.
+Resize mobile (390px) untuk landing page juga dikonfirmasi rapi lewat screenshot.
 
 ### Item follow-up / aksi manual user
 
-- **Coba manual lewat browser**: buka `http://localhost:3000/`, klik "Mulai Gratis",
-  pastikan mendarat di `/dashboard` dengan grid template & "Buat Baru" muncul, klik
-  satu kartu template, pastikan prompt+mode ter-isi otomatis di Generate panel
-  `/studio`.
 - Belum diputuskan: kapan lanjut ke Phase 6R-8+ (AI Influencer, motion graphics auto-
   preset, provider Veo/Seedance asli) — semua ditunda sesuai kesepakatan sesi ini,
   tunggu user yang mulai lagi kapan siap.
