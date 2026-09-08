@@ -1241,16 +1241,22 @@ jalan** sesi ini — cuma didefinisikan di compose file, belum diverifikasi star
 - [ ] **Coba end-to-end lewat browser**: `/studio` → Edit → pilih preset
       "Editorial Newspaper" → Simpan draft → Render video → cek hasilnya beneran
       punya motion/transisi (bukan cuma trim polos).
-- [ ] `docker compose up -d` untuk menyalakan service `n8n` baru, buka
-      `http://localhost:5678`, buat akun owner n8n pertama kali, lalu generate API key
-      (Settings → API) — kirim key itu supaya `n8n-mcp` bisa di-install & disambungkan
-      (`claude mcp add n8n-mcp -- npx n8n-mcp` dengan `N8N_API_URL`/`N8N_API_KEY`).
-- [ ] Kasih URL webhook Discord/Slack (tempat notifikasi "video siap diupload" mau
-      dikirim) — setelah itu baru workflow n8n asli (Webhook trigger → branch event →
-      notifikasi) bisa dibuat via `n8n-mcp`.
-- [ ] Isi `N8N_WEBHOOK_URL` di `backend/.env` begitu workflow n8n-nya sudah jadi &
-      dapat URL webhook-nya sendiri dari n8n (baru itu notifikasi render/export benar-
-      benar terkirim — sekarang masih no-op karena kosong).
+- [x] `docker compose up -d` service `n8n`, akun owner dibuat, API key dibuat,
+      `n8n-mcp` didaftarkan sebagai MCP server (`claude mcp get n8n-mcp` → Connected).
+      Webhook Discord dites langsung (POST → 204).
+- [x] Workflow n8n asli dibuat & diaktifkan: **Webhook** (`POST /webhook/advance-ai-notify`)
+      → **Code** (format pesan per `event`: `render.success`/`render.failed`/
+      `export.success`/`export.failed`) → **HTTP Request** ke webhook Discord channel
+      "Advance-AI". Tidak ada node auto-post ke IG/TikTok/YouTube (sesuai CLAUDE.md).
+      Dibuat lewat n8n REST API langsung (tool `n8n-mcp` belum ter-load di tool-list
+      sesi VSCode ini meski `claude mcp get` bilang Connected — kemungkinan perlu
+      reload window, bukan cuma sesi CLI baru; API key sudah di tangan jadi jalan
+      pintas ini aman & workflow-nya sama persis). Dites end-to-end: webhook → n8n
+      execution `success` → pesan masuk ke Discord.
+- [x] `N8N_WEBHOOK_URL=http://localhost:5678/webhook/advance-ai-notify` diisi di
+      `backend/.env` — notifikasi render/export sekarang beneran terkirim (bukan
+      no-op lagi). **Perlu restart backend + celery worker manual** supaya env baru
+      kebaca.
 - [ ] Kalau mau voice-over AI beneran (bukan cuma dipasang providernya): set
       `AI_VOICEOVER_PROVIDER=edge_tts` di `backend/.env`, restart backend — tidak
       butuh API key.
