@@ -119,6 +119,54 @@ def synthesize_placeholder_video(image_url: str, duration_seconds: float = 4.0) 
         return output_path.read_bytes()
 
 
+def mux_voiceover(video_bytes: bytes, audio_bytes: bytes) -> bytes:
+    """Replaces `video_bytes`'s audio track with the given voice-over audio (Phase
+    6R-13) — every clip this pipeline produces so far is silent (mock provider /
+    motion presets never write an audio stream), so there is never a real narration
+    track to preserve or mix underneath it.
+
+    A voice-over script's length has nothing to do with the clip's length, so this
+    freezes the video's last frame for as long as needed (`tpad`) rather than cutting
+    speech off mid-sentence when the voice-over runs longer than the picture. If the
+    voice-over is instead shorter than the video, the video is trimmed to match it
+    (`-shortest`) — a project with a voice-over is treated as voice-led, not
+    picture-led. `tpad`'s stop_duration (600s) is just a ceiling far past any realistic
+    ad-script narration length, not an actual target duration.
+    """
+    ensure_ffmpeg_available()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        video_path = Path(tmp_dir) / "video.mp4"
+        audio_path = Path(tmp_dir) / "voice.mp3"
+        output_path = Path(tmp_dir) / "with_voice.mp4"
+        video_path.write_bytes(video_bytes)
+        audio_path.write_bytes(audio_bytes)
+
+        command = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(video_path),
+            "-i",
+            str(audio_path),
+            "-filter_complex",
+            "[0:v]tpad=stop_mode=clone:stop_duration=600[v]",
+            "-map",
+            "[v]",
+            "-map",
+            "1:a:0",
+            "-c:v",
+            "libx264",
+            "-c:a",
+            "aac",
+            "-shortest",
+            str(output_path),
+        ]
+
+        run_ffmpeg(command)
+        return output_path.read_bytes()
+
+
 def export_for_platform(source_url: str, platform: str) -> bytes:
     """Crops to 9:16 (center crop after fill-scale to 1080x1920) and caps duration to
     the platform's limit (SRS §2.2) — auto-adjust rather than just rejecting an

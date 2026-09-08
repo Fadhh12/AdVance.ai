@@ -22,6 +22,7 @@ class ContentProjectUpdate(BaseModel):
     trim_start_seconds: float | None = None
     trim_end_seconds: float | None = None
     motion_preset: str | None = None
+    voiceover_text: str | None = None
 
 
 class ContentProjectOut(BaseModel):
@@ -36,6 +37,7 @@ class ContentProjectOut(BaseModel):
     trim_start_seconds: float | None
     trim_end_seconds: float | None
     motion_preset: str | None
+    voiceover_text: str | None
     render_status: str | None
     render_error_message: str | None
     source_video_url: str  # resolved from the source AIJob, not a DB column

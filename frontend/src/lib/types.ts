@@ -47,6 +47,7 @@ export type ContentProject = {
   trim_start_seconds: number | null;
   trim_end_seconds: number | null;
   motion_preset: string | null;
+  voiceover_text: string | null;
   render_status: "queued" | "processing" | "success" | "failed" | null;
   render_error_message: string | null;
   source_video_url: string;

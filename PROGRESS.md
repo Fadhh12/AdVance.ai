@@ -1332,3 +1332,82 @@ itu harus komponen React sendiri (sudah dikerjakan di atas), bukan "ekstrak" dar
   begitu sesi berakhir atau laptop restart, ketiganya perlu dijalankan manual lagi
   (`uvicorn app.main:app --reload`, `celery -A app.workers.celery_app worker
   --pool=solo`, `npm run dev`) — belum ada script/Procfile yang menyatukan ketiganya.
+
+---
+
+## Phase 6R-13 — Voice-over beneran nyambung ke hasil render — Status: selesai
+
+User lihat hasil render asli di `/studio` (bukan cuma baca kode) dan komplain: video
+hasil generate cuma foto diam (nggak kelihatan gerak) dan **nggak ada suara sama
+sekali**, padahal dia mau bisa ketik naskah dan AI membacakannya jadi voice-over di
+video. Diselidiki dulu sebelum dikerjakan (bukan langsung nebak):
+
+- **Video diam** — `MockVideoProvider` (`synthesize_placeholder_video`) sebenarnya
+  sudah pakai efek zoom ("Ken Burns") lewat ffmpeg `zoompan`, tapi zoom-nya sangat
+  halus (1.0 → 1.08 selama 4 detik) jadi nyaris tidak kelihatan — bukan bug, memang
+  cuma placeholder sampai provider AI video-gen asli (Runway/Kling/dst) dipilih &
+  dibayar (CLAUDE.md: belum final, butuh keputusan budget user, sengaja tidak
+  di-hardcode). Motion preset "Editorial Newspaper" (Phase 6R-8) sudah kasih gerakan
+  jauh lebih dramatis (punch zoom, whip pan, handheld shake) — opsi gratis yang sudah
+  ada tapi belum tentu dipakai di tiap project.
+- **Tidak ada suara** — ternyata bukan bug tersembunyi, tapi memang **belum pernah
+  disambungkan**: `generate_voiceover_tool` (Phase 6R-9, edge-tts) cuma menghasilkan
+  `MediaAsset` audio lepas di Media Library, tidak pernah dipakai oleh
+  `render_project_task`. `video_render.py` juga sama sekali tidak punya langkah mixing
+  audio — `music_track` yang dipilih di Edit panel pun ternyata cuma string tersimpan,
+  tidak pernah benar-benar di-mixing (sudah dicatat sebagai gap terpisah di follow-up
+  6R-11, di luar scope sesi ini).
+
+**Yang dikerjakan** (voice-over, gratis, tidak butuh keputusan provider baru):
+- `ContentProject.voiceover_text` (kolom baru, migration `094c285d71ea`) — naskah
+  teks disimpan mentah, **bukan** MediaAsset yang di-generate sekali lalu disimpan;
+  setiap render men-sintesis ulang dari teks, jadi edit naskah + render ulang otomatis
+  konsisten.
+- `video_render.mux_voiceover()` — ffmpeg mux: track audio video (selalu bisu di titik
+  ini) diganti audio voice-over. Kalau naskah lebih panjang dari durasi video, frame
+  terakhir video di-freeze (`tpad`) supaya suara tidak kepotong di tengah kalimat;
+  kalau naskah lebih pendek, video yang dipotong menyesuaikan (`-shortest`) — project
+  ber-voice-over dianggap "dipimpin suara", bukan "dipimpin gambar".
+  `services/storage.py` dapat `download_object()` (ambil bytes langsung lewat boto3)
+  untuk mengambil hasil TTS balik dari MinIO.
+- `render_project_task` (`workers/tasks.py`): kalau `voiceover_text` terisi, sintesis
+  lewat `get_voiceover_provider()` (default `edge_tts`, provider yang sama dari Phase
+  6R-9) lalu `mux_voiceover()` sebelum upload — gagal sintesis/mux bikin
+  `render_status="failed"` dengan pesan jelas (pola sama seperti error ffmpeg/motion
+  preset lain), bukan diam-diam ship video tanpa suara yang diminta.
+- Frontend: `EditPanel` dapat textarea "Naskah voice-over (opsional)" di bawah
+  Caption; `WorkspaceContext` dapat `voiceoverText`/`setVoiceoverText`, masuk ke
+  `saveDraft()` PATCH body (pola sama seperti caption/motion preset — Simpan draft
+  dulu, baru Render). Node **"Voice-over"** (ikon `Mic`) otomatis muncul di Timeline
+  Pipeline (Phase 6R-12) begitu `voiceover_text` terisi, sama seperti node Motion.
+- Test baru: `test_video_render.py` (mux ffmpeg-missing guard + 1 test ffmpeg asli
+  yang benar-benar bikin video 1 detik + audio 3 detik lalu cek hasil mux ~3 detik,
+  bukan kepotong 1 detik), `test_voiceover_render.py` (lewat endpoint asli: render
+  sukses & voice-over ke-mux, render gagal kalau TTS gagal, langkah voice-over
+  di-skip kalau `voiceover_text` kosong). 94 → 97 test lulus total, ruff bersih.
+
+### Keputusan teknis
+
+- **Naskah teks, bukan MediaAsset pre-generated** — beda dari pola motion preset (id
+  string yang nunjuk ke logika render), tapi sengaja: voice-over terikat ke *isi*
+  (teks), jadi re-render harus ikut teks terbaru tanpa langkah "generate ulang audio"
+  manual terpisah.
+- **`-shortest` + `tpad` freeze-frame**, bukan mixing di bawah audio asli — karena
+  setiap video di titik mux selalu bisu (belum ada satupun sumber audio asli untuk
+  di-preserve), replace selalu benar; kalau nanti ada AI video-gen asli yang punya
+  audio sendiri, keputusan ini perlu ditinjau ulang.
+- **Tidak menyentuh scope AI video-gen berbayar** — user juga minta "video yang
+  beneran bergerak" (mis. produk dicelupkan ke cairan), itu butuh provider generative
+  image-to-video asli (Runway/Kling/dst), bukan sekadar ffmpeg. Sudah dijelaskan ke
+  user, **belum dikerjakan** — nunggu keputusan provider + budget (CLAUDE.md).
+
+### Item follow-up / aksi manual user
+
+- [ ] Coba render ulang project yang sudah ada (isi naskah voice-over di Edit → Simpan
+      draft → Render) untuk dengar hasilnya langsung, bukan cuma baca kode.
+- [ ] **Keputusan provider AI video-gen berbayar** — kalau mau video yang benar-benar
+      menghasilkan gerakan/konten baru (bukan cuma kamera bergerak di atas foto diam),
+      ini keputusan besar (biaya API per generate) yang perlu dipilih user dulu
+      (lihat `docs/research/ai-providers-comparison.md`) sebelum bisa dikerjakan.
+- Background music (`music_track`) masih belum di-mixing beneran — gap lama, belum
+  dikerjakan sesi ini (fokus sesi ini voice-over sesuai yang diminta).

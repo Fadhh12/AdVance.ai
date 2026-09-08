@@ -39,6 +39,14 @@ class ContentProject(Base):
     # trim_start/end_seconds are ignored (the preset dictates its own duration).
     motion_preset: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
+    # AI voice-over script (Phase 6R-13). When set, render_project_task synthesizes it
+    # via the configured TTS provider (services/ai_providers/voiceover.py, default
+    # edge-tts — free, no API key) and muxes it onto the rendered clip's audio track,
+    # replacing the silent original (services/video_render.mux_voiceover). Stored as
+    # the source text, not a pre-generated MediaAsset — re-rendering always
+    # re-synthesizes, so editing the script and re-rendering just works.
+    voiceover_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Render worker (ffmpeg) state — separate from `status` so a failed render doesn't
     # need a bespoke value squeezed into SDD's draft/ready/scheduled/published set.
     render_status: Mapped[str | None] = mapped_column(String(20), nullable=True)

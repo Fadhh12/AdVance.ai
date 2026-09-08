@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { Clapperboard, CloudUpload, Rocket, Scissors, Sparkles } from "lucide-react";
+import { Clapperboard, CloudUpload, Mic, Rocket, Scissors, Sparkles } from "lucide-react";
 
 import type { TallyStatus } from "@/components/ui/tally-dot";
 import {
@@ -102,6 +102,17 @@ export function PipelineHeader() {
       icon: Clapperboard,
       status: edit.status,
       caption: "motion preset",
+    });
+  }
+
+  if (project?.voiceover_text) {
+    stages.push({
+      key: "stage-voiceover",
+      targetId: "stage-edit",
+      label: "Voice-over",
+      icon: Mic,
+      status: edit.status,
+      caption: "AI baca naskah",
     });
   }
 

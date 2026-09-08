@@ -41,6 +41,7 @@ def _to_out(project: ContentProject, db: Session) -> ContentProjectOut:
         trim_start_seconds=project.trim_start_seconds,
         trim_end_seconds=project.trim_end_seconds,
         motion_preset=project.motion_preset,
+        voiceover_text=project.voiceover_text,
         render_status=project.render_status,
         render_error_message=project.render_error_message,
         source_video_url=source_job.result_url if source_job else "",

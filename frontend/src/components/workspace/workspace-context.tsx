@@ -59,6 +59,8 @@ type WorkspaceContextValue = {
   setTrimEnd: (value: string) => void;
   motionPreset: string;
   setMotionPreset: (value: string) => void;
+  voiceoverText: string;
+  setVoiceoverText: (value: string) => void;
   saveDraft: () => Promise<void>;
   isSavingDraft: boolean;
   render: () => Promise<void>;
@@ -90,12 +92,14 @@ function applyProjectFields(
   setTrimStart: (v: string) => void,
   setTrimEnd: (v: string) => void,
   setMotionPreset: (v: string) => void,
+  setVoiceoverText: (v: string) => void,
 ) {
   setCaption(project.caption ?? "");
   setMusicTrack(project.music_track ?? "");
   setTrimStart(project.trim_start_seconds?.toString() ?? "");
   setTrimEnd(project.trim_end_seconds?.toString() ?? "");
   setMotionPreset(project.motion_preset ?? "");
+  setVoiceoverText(project.voiceover_text ?? "");
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -121,6 +125,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [trimStart, setTrimStart] = useState("");
   const [trimEnd, setTrimEnd] = useState("");
   const [motionPreset, setMotionPreset] = useState("");
+  const [voiceoverText, setVoiceoverText] = useState("");
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isRendering, setIsRendering] = useState(false);
 
@@ -219,7 +224,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         token: accessToken,
       });
       setProject(loaded);
-      applyProjectFields(loaded, setCaption, setMusicTrack, setTrimStart, setTrimEnd, setMotionPreset);
+      applyProjectFields(loaded, setCaption, setMusicTrack, setTrimStart, setTrimEnd, setMotionPreset, setVoiceoverText);
     },
     [accessToken],
   );
@@ -246,7 +251,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         body: { title: projectTitle.trim(), mode: projectMode, source_job_id: job.id },
       });
       setProject(created);
-      applyProjectFields(created, setCaption, setMusicTrack, setTrimStart, setTrimEnd, setMotionPreset);
+      applyProjectFields(created, setCaption, setMusicTrack, setTrimStart, setTrimEnd, setMotionPreset, setVoiceoverText);
       window.history.replaceState(null, "", `/studio/${created.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Membuat project gagal.");
@@ -269,6 +274,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           trim_start_seconds: trimStart === "" ? null : Number(trimStart),
           trim_end_seconds: trimEnd === "" ? null : Number(trimEnd),
           motion_preset: motionPreset || null,
+          voiceover_text: voiceoverText || null,
         },
       });
       setProject(updated);
@@ -277,7 +283,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsSavingDraft(false);
     }
-  }, [accessToken, project, caption, musicTrack, trimStart, trimEnd, motionPreset]);
+  }, [accessToken, project, caption, musicTrack, trimStart, trimEnd, motionPreset, voiceoverText]);
 
   const render = useCallback(async () => {
     if (!accessToken || !project) return;
@@ -472,6 +478,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setTrimEnd,
       motionPreset,
       setMotionPreset,
+      voiceoverText,
+      setVoiceoverText,
       saveDraft,
       isSavingDraft,
       render,
@@ -508,6 +516,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       trimStart,
       trimEnd,
       motionPreset,
+      voiceoverText,
       saveDraft,
       isSavingDraft,
       render,

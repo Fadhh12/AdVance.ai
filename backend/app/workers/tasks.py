@@ -13,16 +13,17 @@ from app.models.content_project import ContentProject
 from app.models.media_asset import MediaAsset
 from app.models.post import Post
 from app.services.ai_providers.base import TransientProviderError
-from app.services.ai_providers.factory import get_video_provider
+from app.services.ai_providers.factory import get_video_provider, get_voiceover_provider
 from app.services.caption_adapter import adapt_caption
 from app.services.errors import InvalidMotionPresetError
 from app.services.motion_presets.engine import apply_motion_preset
 from app.services.n8n_notify import notify_pipeline_event
-from app.services.storage import generate_presigned_url, upload_object
+from app.services.storage import download_object, generate_presigned_url, upload_object
 from app.services.video_render import (
     FFmpegNotAvailableError,
     VideoRenderError,
     export_for_platform,
+    mux_voiceover,
     trim_video,
 )
 from app.workers.celery_app import celery_app
@@ -119,6 +120,37 @@ def render_project_task(project_id: str) -> None:
                 {"project_id": str(project.id), "error": project.render_error_message},
             )
             return
+
+        # AI voice-over (Phase 6R-13): re-synthesized from the stored script on every
+        # render (not a cached MediaAsset) so editing the text and re-rendering just
+        # works. Every clip up to this point is silent, so this always replaces the
+        # audio track rather than mixing under an existing one — see
+        # video_render.mux_voiceover.
+        if project.voiceover_text:
+            voiceover_result = get_voiceover_provider().synthesize(project.voiceover_text)
+            if not voiceover_result.success or not voiceover_result.audio_key:
+                project.render_status = "failed"
+                project.render_error_message = (
+                    voiceover_result.error_message or "Generate voice-over gagal."
+                )
+                db.commit()
+                notify_pipeline_event(
+                    "render.failed",
+                    {"project_id": str(project.id), "error": project.render_error_message},
+                )
+                return
+            try:
+                audio_bytes = download_object(voiceover_result.audio_key)
+                video_bytes = mux_voiceover(video_bytes, audio_bytes)
+            except (FFmpegNotAvailableError, VideoRenderError) as exc:
+                project.render_status = "failed"
+                project.render_error_message = str(exc)
+                db.commit()
+                notify_pipeline_event(
+                    "render.failed",
+                    {"project_id": str(project.id), "error": project.render_error_message},
+                )
+                return
 
         key = f"renders/{project.id}/{uuid.uuid4()}.mp4"
         upload_object(key, io.BytesIO(video_bytes), "video/mp4")

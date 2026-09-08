@@ -27,6 +27,8 @@ export function EditPanel() {
     setTrimStart,
     trimEnd,
     setTrimEnd,
+    voiceoverText,
+    setVoiceoverText,
     saveDraft,
     isSavingDraft,
     render,
@@ -104,6 +106,26 @@ export function EditPanel() {
           className="rounded-md border border-panel-raised bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-rec"
           placeholder="Tulis caption untuk video ini…"
         />
+      </div>
+
+      <div className="flex max-w-sm flex-col gap-2">
+        <label htmlFor="voiceover" className="text-sm text-ink-muted">
+          Naskah voice-over (opsional)
+        </label>
+        <textarea
+          id="voiceover"
+          value={voiceoverText}
+          onChange={(e) => setVoiceoverText(e.target.value)}
+          rows={3}
+          className="rounded-md border border-panel-raised bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-rec"
+          placeholder="Tulis naskah yang mau dibacakan AI — mis. &quot;Oreo Strawberry Creme, rasa baru yang bikin nagih.&quot;"
+        />
+        {voiceoverText && (
+          <p className="text-xs text-ink-muted">
+            AI akan membacakan naskah ini dan menggantikan audio video (video hasil
+            generate saat ini masih bisu). Simpan draft dulu, lalu render ulang.
+          </p>
+        )}
       </div>
 
       <div className="flex max-w-sm flex-col gap-2">

@@ -30,6 +30,12 @@ def upload_object(key: str, fileobj, content_type: str) -> None:
     )
 
 
+def download_object(key: str) -> bytes:
+    settings = get_settings()
+    response = get_s3_client().get_object(Bucket=settings.s3_bucket_name, Key=key)
+    return response["Body"].read()
+
+
 def delete_object(key: str) -> None:
     settings = get_settings()
     get_s3_client().delete_object(Bucket=settings.s3_bucket_name, Key=key)
