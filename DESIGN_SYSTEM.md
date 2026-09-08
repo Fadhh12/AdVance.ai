@@ -58,9 +58,23 @@ Untuk halaman marketing (landing) yang butuh mode terang, gunakan `#F7F6F2` (put
 Karena alur produk memang benar-benar sekuensial (Upload → Generate → Edit → Publish), tampilkan sebagai **strip timeline horizontal** yang persisten di bagian atas workspace — bukan kartu 01/02/03 generik, tapi elemen fungsional yang menunjukkan posisi project saat ini secara real, mirip timeline editor video sungguhan.
 
 ```
-[● Upload] ──── [◐ Generating…] ──── [○ Edit] ──── [○ Publish]
-   selesai         sedang proses        belum          belum
+[📤 Upload] ╾╌╮  ╭╌╾[✨ Generate] ╾╌╮  ╭╌╾[✂ Edit] ╾╌╮  ╭╌╾[🚀 Publish]
+   selesai       sedang proses          belum            belum
 ```
+
+Tiap node punya **ikon fungsional + nama tahap** (bukan cuma dot polos), dihubungkan
+**kabel melengkung** (bezier, seperti patch cable ruang broadcast) — bukan garis lurus
+datar (`pipeline-connector.tsx`). Ini beda dengan canvas node ala automation-tool
+generik (n8n/Zapier): tetap linear sesuai alur produk asli, tidak ada kotak melayang
+bebas, tidak ada avatar bot, tidak ada percabangan yang dipalsukan.
+
+Sebuah node **tambahan** boleh muncul di antara node inti kalau project memang benar-
+benar memakainya (mis. node "Motion: <nama preset>" muncul hanya kalau
+`project.motion_preset` terisi) — jangan tambahkan node dekoratif yang tidak
+mencerminkan state asli. Tahap **Publish** boleh bercabang jadi beberapa node kecil di
+bawahnya, satu per platform (`PipelineBranch`), begitu `posts` untuk project itu sudah
+disiapkan — cabang ini nyata dari data (satu `Post` per platform), bukan diagram
+keputusan if/else yang dikarang.
 
 ### 5.2 Status pakai "Tally Light", bukan Badge Generik
 Dot kecil berdenyut (pulse) warna `--accent-rec` untuk "processing", solid `--accent-signal` untuk "published/success", solid `--accent-alert` untuk "failed" — ditaruh presisi di depan nama item, bukan badge rounded penuh warna yang menumpuk jadi "confetti UI".

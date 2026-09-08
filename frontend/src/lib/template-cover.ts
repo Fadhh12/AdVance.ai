@@ -1,6 +1,14 @@
-import { Megaphone, ShoppingBag, type LucideIcon } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Camera,
+  Megaphone,
+  MessageCircleHeart,
+  PackageOpen,
+  ShoppingBag,
+  type LucideIcon,
+} from "lucide-react";
 
-import type { ProjectMode } from "@/lib/types";
+import type { ProjectMode, Template } from "@/lib/types";
 
 // Deterministic "cover art" for template cards that don't have a real thumbnail yet
 // (thumbnail_url stays null until real generation ships — see PROGRESS.md Phase
@@ -36,3 +44,21 @@ export const MODE_LABEL: Record<ProjectMode, string> = {
   product_ad: "Iklan Produk",
   affiliate: "Affiliate",
 };
+
+// Per-template icon, keyed by name (see the seed rows in
+// alembic/versions/8b124fa99bc5_create_templates_table.py) — every seeded product_ad
+// template used to fall back to the same ShoppingBag icon, so 3 of the 4 cards in the
+// hub read as visually identical. A real per-template mark (grounded in each one's
+// actual style, not invented) reads as a real gallery instead of one card repeated.
+// Anything not in this map (a template added later straight in the DB) still gets a
+// sensible icon via MODE_ICON, it just won't be individually distinct until added here.
+const TEMPLATE_ICON: Record<string, LucideIcon> = {
+  "Unboxing Produk": PackageOpen,
+  "Testimoni Pelanggan": MessageCircleHeart,
+  "Before/After": ArrowLeftRight,
+  "Demo Produk Close-up": Camera,
+};
+
+export function templateIcon(template: Template): LucideIcon {
+  return TEMPLATE_ICON[template.name] ?? MODE_ICON[template.mode];
+}

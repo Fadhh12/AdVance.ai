@@ -1255,8 +1255,9 @@ jalan** sesi ini — cuma didefinisikan di compose file, belum diverifikasi star
       execution `success` → pesan masuk ke Discord.
 - [x] `N8N_WEBHOOK_URL=http://localhost:5678/webhook/advance-ai-notify` diisi di
       `backend/.env` — notifikasi render/export sekarang beneran terkirim (bukan
-      no-op lagi). **Perlu restart backend + celery worker manual** supaya env baru
-      kebaca.
+      no-op lagi). Backend (`uvicorn`) & celery worker **sudah dijalankan** (ternyata
+      belum pernah jalan sama sekali di mesin ini, bukan cuma perlu restart) — lihat
+      Phase 6R-12 di bawah.
 - [ ] Kalau mau voice-over AI beneran (bukan cuma dipasang providernya): set
       `AI_VOICEOVER_PROVIDER=edge_tts` di `backend/.env`, restart backend — tidak
       butuh API key.
@@ -1267,3 +1268,67 @@ jalan** sesi ini — cuma didefinisikan di compose file, belum diverifikasi star
   asli di-mixing) — di luar scope sesi ini, butuh sumber audio royalty-free asli.
 - AI video-gen provider berbayar (Veo/Kling/dst, biar `prompt` teks benar-benar
   menggerakkan AI video generation asli) — masih ditunda, butuh keputusan budget.
+
+---
+
+## Phase 6R-12 — Stack dijalankan pertama kali + Timeline Pipeline "kabel" — Status: selesai
+
+User minta cek tampilan frontend nyata (bukan cuma baca kode), lalu kasih feedback
+soal pipeline yang "terlalu polos" (referensi screenshot node-canvas ala n8n/Zapier
+generik dari hasil googling) dan dashboard yang "kek AI dan kaku". Dikonfirmasi dulu
+lewat `AskUserQuestion` karena screenshot referensinya persis pola yang dilarang
+`DESIGN_SYSTEM.md` §2 (chrome template, gradient dekoratif, kotak melayang bebas) dan
+alur produk kita memang linear (tidak ada percabangan keputusan seperti di n8n) — user
+pilih opsi rekomendasi: tetap linear, tapi kabel melengkung + ikon per node, plus
+"tambahkan node kalau memang ada tahap ekstra yang dipakai" (bukan node dekoratif).
+
+**Dijalankan (bukan cuma dikode)**: `uvicorn app.main:app --reload` (port 8000) dan
+`celery -A app.workers.celery_app worker --pool=solo` — ternyata **belum pernah jalan
+sama sekali** di mesin dev ini (bukan soal restart). `npm run dev` frontend juga baru
+dijalankan pertama kali (port 3000). Infra docker (postgres/redis/minio/n8n) sudah up
+duluan dari sesi 6R-10.
+
+**Timeline Pipeline jadi "kabel"**: `pipeline-connector.tsx` baru — SVG bezier
+melengkung (patch-cable broadcast), warna & pulsing ikut status tally-light yang sama
+(`stroke-rec` processing, `stroke-signal` success, `stroke-alert` failed), gantikan
+divider garis lurus. `timeline-pipeline.tsx`: tiap `PipelineStage` sekarang wajib
+`icon` (lucide-react) dan boleh punya `branches` (node cabang, dipakai Publish → satu
+node per platform begitu `posts` sudah ada) dan `targetId` (scroll ke section lain,
+dipakai node Motion → scroll ke `#stage-edit`). `pipeline-header.tsx`: 4 node inti
+(Upload/Generate/Edit/Publish, ikon `CloudUpload`/`Sparkles`/`Scissors`/`Rocket`) +
+node "Motion: <nama preset>" (`Clapperboard`) muncul **hanya** kalau
+`project.motion_preset` terisi, + cabang per-platform di Publish **hanya** kalau
+`posts` sudah disiapkan — tidak ada node/cabang yang dipalsukan untuk terlihat ramai.
+`pipeline-explainer.tsx` (landing page, reuse komponen yang sama) ikut dikasih ikon.
+`DESIGN_SYSTEM.md` §5.1 diupdate untuk mendokumentasikan motif "kabel + ikon + node
+dinamis" ini secara eksplisit (bukan penyimpangan diam-diam dari dokumen).
+
+**Dashboard "kaku"**: akar masalah konkret yang ditemukan — 3 dari 4 template bawaan
+(`Unboxing Produk`/`Before/After`/`Demo Produk Close-up`, semuanya `product_ad`) semua
+pakai ikon `ShoppingBag` yang sama persis di `TemplateHubGrid`, jadi kelihatan seperti
+kartu yang sama diulang. `lib/template-cover.ts` dapat `templateIcon()` — ikon per
+nama template (`PackageOpen`/`MessageCircleHeart`/`ArrowLeftRight`/`Camera`, sesuai
+gaya masing-masing template asli di seed migration), fallback ke ikon mode kalau ada
+template baru yang belum dipetakan. Ikon di kartu dapat hover scale kecil.
+**Template bawaan itu sendiri sudah ada sejak awal** (4 baris di
+`8b124fa99bc5_create_templates_table.py`, diverifikasi masih ke-seed di Postgres) —
+bukan fitur baru, cuma kurang keliatan karena semua kartunya mirip.
+
+**Pertanyaan user soal n8n dijawab** (bukan perubahan kode): n8n itu orkestrasi
+backend-only (notifikasi Discord), tidak pernah tampil ke user aplikasi, dan canvas
+node n8n **tidak bisa** di-embed ke Next.js — kalau mau tampilan serupa di produk,
+itu harus komponen React sendiri (sudah dikerjakan di atas), bukan "ekstrak" dari n8n.
+
+### Item follow-up / aksi manual user
+
+- [ ] **Redesign dashboard lebih lanjut** — perbaikan ikon template ini baru satu titik
+      konkret yang ditemukan sendiri (bukan dari feedback spesifik user tentang bagian
+      mana yang "kaku"). Kalau masih belum sesuai setelah dilihat langsung di
+      `/dashboard`, kasih tahu elemen spesifiknya (warna? kepadatan konten? kurang
+      ilustrasi?) supaya nggak nebak-nebak lagi.
+- [ ] Coba `/studio` langsung di browser untuk lihat pipeline kabel yang baru — apakah
+      lengkungnya/ukuran node sudah pas, atau perlu disetel lagi.
+- Backend/celery/frontend dijalankan via `run_in_background` sesi Claude Code ini —
+  begitu sesi berakhir atau laptop restart, ketiganya perlu dijalankan manual lagi
+  (`uvicorn app.main:app --reload`, `celery -A app.workers.celery_app worker
+  --pool=solo`, `npm run dev`) — belum ada script/Procfile yang menyatukan ketiganya.

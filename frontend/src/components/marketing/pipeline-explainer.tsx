@@ -1,3 +1,5 @@
+import { CloudUpload, Rocket, Scissors, Sparkles } from "lucide-react";
+
 import { TimelinePipeline, type PipelineStage } from "@/components/workspace/timeline-pipeline";
 
 // Fixed, illustrative stage statuses — not live data (this is a marketing page, no
@@ -6,10 +8,10 @@ import { TimelinePipeline, type PipelineStage } from "@/components/workspace/tim
 // mirrors the workspace's own palette, so this is a preview of the real UI rather
 // than a separate illustration invented for marketing.
 const STAGES: PipelineStage[] = [
-  { key: "s1", label: "Upload", status: "success", caption: "foto produk" },
-  { key: "s2", label: "Generate", status: "processing", caption: "AI bikin video" },
-  { key: "s3", label: "Edit", status: "idle", caption: "trim, caption, musik" },
-  { key: "s4", label: "Publish", status: "idle", caption: "siap per platform" },
+  { key: "s1", label: "Upload", icon: CloudUpload, status: "success", caption: "foto produk" },
+  { key: "s2", label: "Generate", icon: Sparkles, status: "processing", caption: "AI bikin video" },
+  { key: "s3", label: "Edit", icon: Scissors, status: "idle", caption: "trim, caption, musik" },
+  { key: "s4", label: "Publish", icon: Rocket, status: "idle", caption: "siap per platform" },
 ];
 
 export function PipelineExplainer() {

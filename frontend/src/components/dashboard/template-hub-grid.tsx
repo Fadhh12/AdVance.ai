@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
-import { MODE_ICON, MODE_LABEL, templateGradient } from "@/lib/template-cover";
+import { MODE_ICON, MODE_LABEL, templateGradient, templateIcon } from "@/lib/template-cover";
 import type { ProjectMode, Template } from "@/lib/types";
 
 const MODES: ProjectMode[] = ["product_ad", "affiliate"];
@@ -45,36 +45,42 @@ export function TemplateHubGrid({ accessToken }: { accessToken: string | undefin
       {MODES.map((mode) => {
         const items = templates.filter((template) => template.mode === mode);
         if (items.length === 0) return null;
-        const Icon = MODE_ICON[mode];
+        const ModeIcon = MODE_ICON[mode];
         return (
           <div key={mode}>
             <h2 className="flex items-center gap-2 font-display text-lg text-ink">
-              <Icon className="h-5 w-5 text-rec" aria-hidden />
+              <ModeIcon className="h-5 w-5 text-rec" aria-hidden />
               {MODE_LABEL[mode]}
             </h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  onClick={() => openTemplate(template)}
-                  className="flex flex-col overflow-hidden rounded-lg border border-panel-raised bg-panel text-left transition-colors hover:border-rec/60"
-                >
-                  <div
-                    className={`flex h-28 items-center justify-center bg-gradient-to-br ${templateGradient(template.id)}`}
+              {items.map((template) => {
+                const Icon = templateIcon(template);
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => openTemplate(template)}
+                    className="group flex flex-col overflow-hidden rounded-lg border border-panel-raised bg-panel text-left transition-colors hover:border-rec/60"
                   >
-                    <Icon className="h-8 w-8 text-ink-muted" aria-hidden />
-                  </div>
-                  <div className="p-4">
-                    <p className="text-sm text-ink">{template.name}</p>
-                    {template.description && (
-                      <p className="mt-1 line-clamp-2 text-xs text-ink-muted">
-                        {template.description}
-                      </p>
-                    )}
-                  </div>
-                </button>
-              ))}
+                    <div
+                      className={`flex h-28 items-center justify-center bg-gradient-to-br ${templateGradient(template.id)} transition-transform`}
+                    >
+                      <Icon
+                        className="h-8 w-8 text-ink-muted transition-transform group-hover:scale-110 group-hover:text-ink"
+                        aria-hidden
+                      />
+                    </div>
+                    <div className="p-4">
+                      <p className="text-sm text-ink">{template.name}</p>
+                      {template.description && (
+                        <p className="mt-1 line-clamp-2 text-xs text-ink-muted">
+                          {template.description}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         );
