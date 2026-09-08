@@ -1,3 +1,5 @@
+"use client";
+
 import { CloudUpload, Rocket, Scissors, Sparkles } from "lucide-react";
 
 import { TimelinePipeline, type PipelineStage } from "@/components/workspace/timeline-pipeline";
